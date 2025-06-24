@@ -7,7 +7,7 @@
 #########################################################################
 
 # Version for display purposes
-Version="v1.11.06"
+Version="v1.11.07"
 
 # Have the databases passed integrity checks
 CheckedDB=0
