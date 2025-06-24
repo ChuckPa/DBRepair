@@ -377,7 +377,7 @@ GetOverride() {
 # Determine which host we are running on and set variables
 HostConfig() {
 
-  # On all hosts except Mac
+  # On all hosts except Mac/FreeBSD
   PIDOF="pidof"
   STATFMT="-c"
   STATBYTES="%s"
@@ -624,6 +624,46 @@ HostConfig() {
     HapticOkay=1
 
     HostType="Mac"
+    return 0
+
+  # FreeBSD
+  elif [ -d "/usr/local/share/plexmediaserver" ] || \
+       [ -d "/usr/local/share/plexmediaserver-plexpass" ]; then
+
+    if [ -d "/usr/local/share/plexmediaserver-plexpass" ]; then 
+      _plexpass="-plexpass"
+      _plexservice="_plexpass"
+    else
+      _plexpass=""
+      _plexservice=""
+    fi
+
+    # Where is the software
+    _plexhome="/usr/local/share/plexmediaserver${_plexpass}"
+    AppSuppDir="/usr/local/plexdata${_plexpass}"
+    PLEX_SQLITE="${_plexhome}/Plex SQLite"
+    DBDIR="${AppSuppDir}/Plex Media Server/Plug-in Support/Databases"
+    CACHEDIR="${AppSuppDir}/Library/Caches/PlexMediaServer/PhotoTranscoder"
+    LOGFILE="$DBDIR/DBRepair.log"
+    LOG_TOOL="logger"
+    TMPDIR="/tmp"
+    SYSTMP="$TMPDIR"
+
+    # FreeBSD uses pgrep and uses different stat options
+    PIDOF="pgrep"
+    STATFMT="-f"
+    STATBYTES="%z"
+    STATPERMS="%Lp"
+
+    # Root required on FreeBSD.  PMS runs as root as a service.
+    RootRequired=1
+
+    # You can set haptic to 0 for silence.
+    HaveStartStop=1
+    StartCommand="/usr/sbin/service plexmediaserver${_plexservice} start"
+    StopCommand="/usr/sbin/service plexmediaserver${_plexservice} stop"
+
+    HostType="FreeBSD"
     return 0
 
   # Western Digital (OS5)
