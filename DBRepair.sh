@@ -648,6 +648,9 @@ HostConfig() {
       if [ "x$plexmediaserver_plexpass_support_path" != "x" ]; then
         DBDIR="${plexmediaserver_plexpass_support_path}/Plex Media Server/Plug-in Support/Databases"
         CACHEDIR="${plexmediaserver_plexpass_support_path}/Cache"
+      elif [ "x$plexmediaserver_support_path" != "x" ]; then
+        DBDIR="${plexmediaserver_support_path}/Plex Media Server/Plug-in Support/Databases"
+        CACHEDIR="${plexmediaserver_support_path}/Cache"
       else
         # System is using default Ports package configuration paths
         DBDIR="/usr/local/plexdata${BsdPlexPass}/Plex Media Server/Plug-in Support/Databases"
