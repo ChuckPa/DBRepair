@@ -626,28 +626,46 @@ HostConfig() {
     HostType="Mac"
     return 0
 
-  # FreeBSD
-  elif [ -d "/usr/local/share/plexmediaserver" ] || \
-       [ -d "/usr/local/share/plexmediaserver-plexpass" ]; then
+ # FreeBSD 14+
+  elif [ -e /etc/os-release ] && [ "$(cat /etc/os-release | grep FreeBSD)" != "" ]; then
 
-    if [ -d "/usr/local/share/plexmediaserver-plexpass" ]; then 
-      _plexpass="-plexpass"
-      _plexservice="_plexpass"
+    # Load functions for interacting with FreeBSD RC System
+    . /etc/rc.subr
+
+    # Find PMS
+    PLEXPKG=$(pkg info | grep plexmediaserver | awk '{print $1}')
+
+    if [ "x$PLEXPKG" != "x" ]; then # Plex ports package is installed
+      BsdRcFile=$(pkg list $PLEXPKG | grep "/usr/local/etc/rc.d")
+      BsdService=$(basename $BsdRcFile)
+      # FreeBSD Ports has two packages for Plex - determine which one is installed
+      BsdPlexPass="$(pkg info $PLEXPKG | grep ^Name | awk '{print $3}' | sed -e 's/plexmediaserver//')"
+
+      # Load FreeBSD RC configuration for Plex
+      load_rc_config $BsdService
+
+      # Use FreeBSD RC configuration to set paths
+      if [ "x$plexmediaserver_plexpass_support_path" != "x" ]; then
+        DBDIR="${plexmediaserver_plexpass_support_path}/Plex Media Server/Plug-in Support/Databases"
+        CACHEDIR="${plexmediaserver_plexpass_support_path}/Cache"
+      else
+        # System is using default Ports package configuration paths
+        DBDIR="/usr/local/plexdata${BsdPlexPass}/Plex Media Server/Plug-in Support/Databases"
+        CACHEDIR="/usr/local/plexdata${BsdPlexPass}/Cache"
+      fi
+
+      # Where is the software
+      AppSuppDir=$(dirname `pkg list $PLEXPKG | grep Plex_Media_Server`)
+      PLEX_SQLITE="${AppSuppDir}/Plex SQLite"
+      LOGFILE="$DBDIR/DBRepair.log"
+      LOG_TOOL="logger"
+      TMPDIR="/tmp"
+      SYSTMP="$TMPDIR"
     else
-      _plexpass=""
-      _plexservice=""
+      Output "Plex Media Server FreeBSD PKG is not installed!"
+      Fail=1
+      return 1
     fi
-
-    # Where is the software
-    _plexhome="/usr/local/share/plexmediaserver${_plexpass}"
-    AppSuppDir="/usr/local/plexdata${_plexpass}"
-    PLEX_SQLITE="${_plexhome}/Plex SQLite"
-    DBDIR="${AppSuppDir}/Plex Media Server/Plug-in Support/Databases"
-    CACHEDIR="${AppSuppDir}/Library/Caches/PlexMediaServer/PhotoTranscoder"
-    LOGFILE="$DBDIR/DBRepair.log"
-    LOG_TOOL="logger"
-    TMPDIR="/tmp"
-    SYSTMP="$TMPDIR"
 
     # FreeBSD uses pgrep and uses different stat options
     PIDOF="pgrep"
@@ -655,13 +673,12 @@ HostConfig() {
     STATBYTES="%z"
     STATPERMS="%Lp"
 
-    # Root required on FreeBSD.  PMS runs as root as a service.
+    # User 'plex' exists on FreeBSD, but the tool may not be run as that service account.
     RootRequired=1
 
-    # You can set haptic to 0 for silence.
     HaveStartStop=1
-    StartCommand="/usr/sbin/service plexmediaserver${_plexservice} start"
-    StopCommand="/usr/sbin/service plexmediaserver${_plexservice} stop"
+    StartCommand="/usr/sbin/service plexmediaserver${BsdService} start"
+    StopCommand="/usr/sbin/service plexmediaserver${BsdService} stop"
 
     HostType="FreeBSD"
     return 0
@@ -1874,7 +1891,7 @@ Scripted=0
 
 # Identify this host
 if [ $ManualConfig -eq 0 ] && ! HostConfig; then
-  Output 'Error: Unknown host. Current supported hosts are: QNAP, Syno, Netgear, Mac, ASUSTOR, WD (OS5), Linux wkstn/svr, SNAP'
+  Output 'Error: Unknown host. Current supported hosts are: QNAP, Syno, Netgear, Mac, ASUSTOR, WD (OS5), Linux wkstn/svr, SNAP, FreeBSD 14+'
   Output '                     Current supported container images:  Plexinc, LinuxServer, HotIO, & BINHEX'
   Output '                     Manual host configuration is available in most use cases.'
   Output ' '
