@@ -779,10 +779,10 @@ HostConfig() {
       LOGFILE="$DBDIR/DBRepair.log"
       LOG_TOOL="logger"
 
-      if grep rpcinterface /etc/supervisor.conf > /dev/null; then
+      if grep rpcinterface /etc/supervisord.conf > /dev/null; then
         HaveStartStop=1
-        StartCommand="supervisorctl start plexmediaserver"
-        StopCommand="supervisorctl stop plexmediaserver"
+        StartCommand="supervisorctl start start-script"
+        StopCommand="supervisorctl stop start-script"
       fi
 
       HostType="BINHEX"
