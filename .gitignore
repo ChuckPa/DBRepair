@@ -1,0 +1,15 @@
+# VS Code workspace files
+*.code-workspace
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Editor backup files
+*~
+*.swp
+*.bak
+
+# Local testing/config
+*.local
+.env
