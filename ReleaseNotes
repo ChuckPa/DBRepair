@@ -8,6 +8,15 @@
 ![Maintenance](https://img.shields.io/badge/Maintained-Yes-green.svg)
 
 # Release Info:
+v1.15.00
+
+  1. DSM 6 Start/Stop     - Change how DSM 6 start/stop feature implemented
+                            This accounts for changes in DSM 6.
+
+  2. Permissions/Owner    - Some DSM users experience permission errors after running DBRepair
+                            on Synology.  Begin implementation of more robust handling for
+                            restricted environments like DSM.
+
 v1.14.00
 
   1. Full-Text Search     - Check and repair Full-Text Search (FTS) database indexes.

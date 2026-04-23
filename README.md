@@ -291,19 +291,16 @@ Special considerations:
     4. The Logfile ('show' command) shows all actions performed WITH timestamp so you can locate
        intermediate databases if desired for special / manual recovery cases.
 
-Attention:
-
-  The behavior of command "99" is different than command "Exit"
-  This is intentional.
-
-  "99" is the "Get out now,  Keep all intermediate/temp files.
-   --  This is for when DB operations keep getting worse and you don't know what to do.
-       "99" is an old 'Get Smart' TV series reference where agent 99 would try to save agent 86 from harm.
-
   Community feedback has resulted in:
 
+    "98" or "Quit" - Get out now without deleting the temp databases (Usually
+                     used only during unexpected failures)
     "99" or "Exit" - Preferred way to exit and cleanup temp databases
-    "98" or "Quit" - Get out now without deleting the temp databases (Usually used only during unexpected failures)
+
+   Notice:
+     If command line EOF is encountered before Exit/Quit command received,
+     DBRepair will quit and KEEP all temporary files.
+
 
   Also please be aware the script understands interactive versus scripted mode.
 

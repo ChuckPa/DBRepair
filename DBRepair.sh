@@ -2,12 +2,12 @@
 #########################################################################
 # Database Repair Utility for Plex Media Server.                        #
 # Maintainer: ChuckPa                                                   #
-# Version:    v1.14.00                                                  #
-# Date:       24-Jan-2026                                               #
+# Version:    v1.15.00                                                  #
+# Date:       02-Mar-2026                                               #
 #########################################################################
 
 # Version for display purposes
-Version="v1.14.00"
+Version="v1.15.00"
 
 # Have the databases passed integrity checks
 CheckedDB=0
@@ -28,6 +28,10 @@ RemoveDuplicates=0
 
 # Keep track of how many times the user's hit enter with no command (implied EOF)
 NullCommands=0
+
+# Default (Preset) user and group for certain environments
+DefaultUser=""
+DefaultGroup=""
 
 # Default TMP dir for most hosts
 TMPDIR="/tmp"
@@ -487,6 +491,11 @@ HostConfig() {
   if [ -d /var/packages/PlexMediaServer ] && \
      [ -d "/var/packages/PlexMediaServer/shares/PlexMediaServer/AppData/Plex Media Server" ]; then
 
+    # Who are we
+    DefaultUser="PlexMediaServer"
+    DefaultGroup="PlexMediaServer"
+    Owner="${DefaultUser}:${DefaultGroup}"
+
     # Where is the software
     PKGDIR="/var/packages/PlexMediaServer/target"
     PLEX_SQLITE="$PKGDIR/Plex SQLite"
@@ -514,6 +523,11 @@ HostConfig() {
   elif [ -d "/var/packages/Plex Media Server" ] && \
        [ -f "/usr/syno/sbin/synoshare" ]; then
 
+    # Who are we
+    DefaultUser="Plex"
+    DefaultGroup="users"
+    Owner="${DefaultUser}:${DefaultGroup}"
+
     # Where is the software
     PKGDIR="/var/packages/Plex Media Server/target"
     PLEX_SQLITE="$PKGDIR/Plex SQLite"
@@ -537,8 +551,14 @@ HostConfig() {
 
       # We do have start/stop as root
       HaveStartStop=1
-      StartCommand="/usr/syno/bin/synopkg start PlexMediaServer"
-      StopCommand="/usr/syno/bin/synopkg stop PlexMediaServer"
+      SynoStart="'/var/packages/Plex Media Server/scripts/start-stop-status' start"
+      SynoStop="'/var/packages/Plex Media Server/scripts/start-stop-status' stop"
+
+      # We do have start/stop as root
+      HaveStartStop=1
+      StartCommand="eval $SynoStart"
+      StopCommand="eval $SynoStop"
+
       return 0
     fi
 
