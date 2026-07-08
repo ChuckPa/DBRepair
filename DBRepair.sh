@@ -2,12 +2,12 @@
 #########################################################################
 # Database Repair Utility for Plex Media Server.                        #
 # Maintainer: ChuckPa                                                   #
-# Version:    v1.15.00                                                  #
-# Date:       02-Mar-2026                                               #
+# Version:    v1.16.00                                                  #
+# Date:       23-Jun-2026                                               #
 #########################################################################
 
 # Version for display purposes
-Version="v1.15.00"
+Version="v1.16.00"
 
 # Have the databases passed integrity checks
 CheckedDB=0
@@ -701,38 +701,49 @@ HostConfig() {
     HostType="ASUSTOR"
     return 0
 
-
   # Apple Mac
-  elif [ -d "/Applications/Plex Media Server.app" ] && \
-       [ -d "$HOME/Library/Application Support/Plex Media Server" ]; then
+  elif [ "$(uname)" = "Darwin" ] && [ -d "$HOME/Library/Application Support/Plex Media Server" ]; then
 
-    # Where is the software
-    PLEX_SQLITE="/Applications/Plex Media Server.app/Contents/MacOS/Plex SQLite"
-    AppSuppDir="$HOME/Library/Application Support"
-    DBDIR="$AppSuppDir/Plex Media Server/Plug-in Support/Databases"
-    CACHEDIR="$HOME/Library/Caches/PlexMediaServer/PhotoTranscoder"
-    LOGFILE="$DBDIR/DBRepair.log"
-    LOG_TOOL="logger"
-    TMPDIR="/tmp"
-    SYSTMP="$TMPDIR"
+    # Determine where the application bundle is installed
+    if [ -d "/Applications/Plex Media Server.app" ]; then
+      PkgDir="/Applications/Plex Media Server.app"
+    elif [ -d "$HOME/Applications/Plex Media Server.app" ]; then
+      PkgDir="$HOME/Applications/Plex Media Server.app"
+    else
+      # It is a Mac, but the .app bundle cannot be found
+      PkgDir=""
+    fi
 
-    # MacOS uses pgrep and uses different stat options
-    PIDOF="pgrep"
-    STATFMT="-f"
-    STATBYTES="%z"
-    STATPERMS="%A"
+    # Only proceed if we successfully located PkgDir
+    if [ -n "$PkgDir" ]; then
+      # Where is the software
+      PLEX_SQLITE="${PkgDir}/Contents/MacOS/Plex SQLite"
+      AppSuppDir="$HOME/Library/Application Support"
+      DBDIR="$AppSuppDir/Plex Media Server/Plug-in Support/Databases"
+      CACHEDIR="$HOME/Library/Caches/PlexMediaServer/PhotoTranscoder"
+      LOGFILE="$DBDIR/DBRepair.log"
+      LOG_TOOL="logger"
+      TMPDIR="/tmp"
+      SYSTMP="$TMPDIR"
 
-    # Root not required on MacOS.  PMS runs as username.
-    RootRequired=0
+      # MacOS uses pgrep and uses different stat options
+      PIDOF="pgrep"
+      STATFMT="-f"
+      STATBYTES="%z"
+      STATPERMS="%A"
 
-    # You can set haptic to 0 for silence.
-    HaveStartStop=1
-    StartCommand=startMacPMS
-    StopCommand=stopMacPMS
-    HapticOkay=1
+      # Root not required on MacOS.  PMS runs as username.
+      RootRequired=0
 
-    HostType="Mac"
-    return 0
+      # You can set haptic to 0 for silence.
+      HaveStartStop=1
+      StartCommand=startMacPMS
+      StopCommand=stopMacPMS
+      HapticOkay=1
+
+      HostType="Mac"
+      return 0
+    fi
 
  # FreeBSD 14+
   elif [ -e /etc/os-release ] && [ "$(cat /etc/os-release | grep FreeBSD)" != "" ]; then

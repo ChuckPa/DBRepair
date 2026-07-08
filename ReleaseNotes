@@ -7,7 +7,14 @@
 [![master](https://img.shields.io/badge/master-stable-green.svg?maxAge=2592000)]('')
 ![Maintenance](https://img.shields.io/badge/Maintained-Yes-green.svg)
 
+
+
 # Release Info:
+v1.16.00
+
+  1. MacOS App Dir        - Older MacOS systems use /Applications.  Newer MacOS systems use $HOME/Applications.
+                            DBRepair now detects this and supports both locations.
+
 v1.15.00
 
   1. DSM 6 Start/Stop     - Change how DSM 6 start/stop feature implemented

@@ -6,6 +6,7 @@
 [![Download total](https://img.shields.io/github/downloads/ChuckPa/DBRepair/total.svg)](https://github.com/ChuckPa/DBRepair/releases)
 [![master](https://img.shields.io/badge/master-stable-green.svg?maxAge=2592000)]('')
 ![Maintenance](https://img.shields.io/badge/Maintained-Yes-green.svg)
+[![Sponsor ChuckPa](https://img.shields.io/badge/Sponsor-%E2%9D%A4-ea4aaa.svg?style=flat&logo=github)](https://github.com/sponsors/ChuckPa)
 
 
 DBRepair is run from a command line (terminal or ssh/putty session) which has sufficient privilege to read/write the databases (minimum).
@@ -14,12 +15,12 @@ If sufficient privleges exist (root), and supported by the environment, the opti
 
 ## Situations and errors commonly seen include:
 
-        1. Searching is sluggish
+        1. Searching is sluggish or completely broken
         2. Database is malformed / damaged / corrupted
         3. Database has bloated from media addition or changes
-        4. Damaged indexes damaged
+        4. Damaged indexes
         5. Importing data from other databases (watch history)
-        6. Cleaning up operational temp files which PMS has forgotten to clean up
+        6. Cleaning up operational temp files which PMS has forgotten
 
 
 ## Functions provided
