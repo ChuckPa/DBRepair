@@ -10,6 +10,29 @@
 
 
 # Release Info:
+v1.17.01
+
+  1. CheckFTS/RebuildFTS  - FTSRebuild did not perform a proper CheckFTS after repairing the FTS
+                            tables.  While this doesn't guarantee they won't corrupt again.  It does
+                            confirm DBRepair has repaired them. 
+
+                            Thanks to @dreondre for catching and fixing this. 
+  
+v1.17.00
+
+  1. BusyBox              - Address edge case errors with NAS vendors' BusyBox shell implementation.
+                           This addresses weird command behavior on those systems
+
+  2. Long Term Support    - DBRepair (BASH) version is entering Long Term Support (LTS) phase.
+                            Active development focuses on the compiled C version for all platforms.
+                            This existing BASH version continues to be primary tool until such time
+                            it becomes production ready (perhaps 2027 timeframe).
+
+                          - DBRepair.sh will be fully maintained and enhanced as needed by the community
+                            until such time as it's retired to Legacy Archive status. 
+
+
+
 v1.16.00
 
   1. MacOS App Dir        - Older MacOS systems use /Applications.  Newer MacOS systems use $HOME/Applications.

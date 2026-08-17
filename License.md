@@ -1,9 +1,6 @@
-Copyright (c) 2025, ChuckPa.
+Copyright (c) 2022-2026, ChuckPa. All Rights Reserved.
 
-This software is the intellectual property of ChuckPa
-and used in conjunction with Plex Media Server (which is Copyright & Trademark of Plex, Inc.)
-
+This software is the intellectual property of ChuckPa and used in conjunction with Plex Media Server (which is Copyright & Trademark of Plex, Inc.).
 It may not be copied, modified, or redistributed in any way without expressly written permission of ChuckPa.
-
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.

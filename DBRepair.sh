@@ -1,13 +1,14 @@
 #!/bin/bash
 #########################################################################
 # Database Repair Utility for Plex Media Server.                        #
-# Maintainer: ChuckPa                                                   #
-# Version:    v1.16.00                                                  #
-# Date:       23-Jun-2026                                               #
+# Copyright:  2022-2026: ChuckPa                                        #
+#             All Rights Reserved.                                      #
+# Version:    v1.17.01                                                  #
+# Date:       06-Aug-2026                                               #
 #########################################################################
 
 # Version for display purposes
-Version="v1.16.00"
+Version="v1.17.01"
 
 # Have the databases passed integrity checks
 CheckedDB=0
@@ -1053,6 +1054,10 @@ DoIndex() {
 
 ##### FTS REBUILD
 DoFTSRebuild() {
+
+    # EMERGENCY PATCH
+    Output "Temporary Patch:  FTS Rebuilding disabled as of PMS 1.43.x and Plex discussions until resolved."
+    return 0 
 
     # Clear flags
     Damaged=0
@@ -2598,12 +2603,12 @@ do
           Output "FTS indexes are damaged. Attempting automatic FTS rebuild..."
           WriteLog "Auto    - FTS damaged, attempting rebuild"
 
-          if DoFTSRebuild; then
-            WriteLog "Auto    - FTS Rebuild - PASS"
-            Output "FTS rebuild successful."
+          if DoFTSRebuild && CheckFTS "Auto   "; then
+            WriteLog "Auto    - FTS Rebuild - PASS (verified)"
+            Output "FTS rebuild successful and verified clean."
           else
-            WriteLog "Auto    - FTS Rebuild - FAIL"
-            Output "FTS rebuild failed. You may need to run 'reindex' command manually."
+            WriteLog "Auto    - FTS Rebuild - FAIL (unverified or still damaged)"
+            Output "FTS rebuild did not produce a verified-clean index. You may need to run 'reindex' command manually."
             # Don't fail auto entirely - main DB repair succeeded
           fi
         else
@@ -2713,12 +2718,12 @@ do
               Output "FTS indexes are damaged. Rebuilding..."
               WriteLog "Reindex - FTS damaged, attempting rebuild"
 
-              if DoFTSRebuild; then
-                WriteLog "Reindex - FTS Rebuild - PASS"
-                Output "FTS rebuild successful."
+              if DoFTSRebuild && CheckFTS "Reindex"; then
+                WriteLog "Reindex - FTS Rebuild - PASS (verified)"
+                Output "FTS rebuild successful and verified clean."
               else
-                WriteLog "Reindex - FTS Rebuild - FAIL"
-                Output "FTS rebuild failed."
+                WriteLog "Reindex - FTS Rebuild - FAIL (unverified or still damaged)"
+                Output "FTS rebuild did not produce a verified-clean index."
               fi
             else
               WriteLog "Reindex - FTS Check - PASS"

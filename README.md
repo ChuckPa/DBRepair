@@ -9,6 +9,53 @@
 [![Sponsor ChuckPa](https://img.shields.io/badge/Sponsor-%E2%9D%A4-ea4aaa.svg?style=flat&logo=github)](https://github.com/sponsors/ChuckPa)
 
 
+# SPECIAL ANNOUNCEMENT:
+
+## Due to changes in PMS beginning with PMS 1.43.0,  
+
+DBRepair.sh,  as currently written, is incompatible with PMS 1.43.0 and above.  It manifests as FTS "Malformed inverted index" errors
+Because of this,  major changes are coming. 
+
+1.   DBRepair.sh --  As it exists in the main repo,  has been patched to disable FTS repair.
+2.   Existing 1.17.x packages have been taken down for everyone's safety
+
+You may safely use it for normal optimization but it not address any FTS issues. 
+
+
+#### DBRepair.sh - NEEDS PATCHING. 
+- Falsely reports "Malformed inverted index" and marks the DB as damaged.
+This is the incompatibility showing itself.  This will be worked around. 
+
+- Changes in Plex's SQLite version require major changes to address the incompatibilities being seen between 1.42.2 & 1.43.x
+- Schema changes in PMS require DBRepair perform its tasks differently.
+
+- I have temporarily patched the main DBRepair.sh to disable FTS (Text Search) repairs and removed the posted packages for everyone's safety.
+
+  
+### Upcoming:
+
+1.   All versions of PMS below 1.43.0  (including PMS 1.42.2 - Aug 2025) will no longer be supported due to SQL incompatibilities.     I cannot support two different database schemas.
+
+2.  DBRepair.sh (Script)
+-- Update to  enforce the PMS 1.43+ requirement
+-- Update to utilize new PMS SQLite version
+--  Update to use new FTS, Triggers, and Indexes commands and sequencing. 
+
+
+3. Patch technique 
+--  For those Linux users  wanting to self-patch DBRepair.sh,   I will post the instructions soon in the forum.
+    
+
+4.   DBRepair (Program)
+-- Development testing will resume once the radioactive fallout :collision: has been cleared.
+
+
+
+#### PLEASE don't hesitate to ask if any questions or have any comments .
+
+
+===================================================================================================================================================================
+
 DBRepair is run from a command line (terminal or ssh/putty session) which has sufficient privilege to read/write the databases (minimum).
 If sufficient privleges exist (root), and supported by the environment, the options to start and stop PMS are presented as well.
 (Some envionments require DBRepair to run as the 'root' user.)
