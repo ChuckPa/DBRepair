@@ -4,6 +4,16 @@ Release notes for the Windows counterpart to DBRepair.sh (DBRepair-Windows.ps1)
 
 # Release Info
 
+v1.02.00
+  - PMS 1.43+ / SQLite 3.44+: `PRAGMA integrity_check` now also validates FTS3/FTS4 content and reports
+    "malformed inverted index for FTS4 table ..." on databases which SQLite 3.39.4 called `ok`.
+    That is FTS index drift, not database corruption, so the integrity check no longer fails the run when
+    every finding is an inverted-index line - it logs a warning and continues.
+  - Add an FTS index rebuild to automatic maintenance.  After REINDEX (and before the new databases are
+    made active), every FTS4 virtual table is rebuilt with `INSERT INTO <t>(<t>) VALUES('rebuild')` and
+    then verified with `('integrity-check')`.  Only a failing integrity-check fails the run.
+    (A dump/reload copies the FTS shadow tables verbatim, so the indexes must be rebuilt explicitly.)
+
 v1.01.02
   - Remove `statistics_bandwidth` pruning, as it's now part of PMS 1.41.8
   - Change `quit` to 98 and `exit` to 99

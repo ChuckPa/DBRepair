@@ -3,12 +3,12 @@
 # Database Repair Utility for Plex Media Server.                        #
 # Copyright:  2022-2026: ChuckPa                                        #
 #             All Rights Reserved.                                      #
-# Version:    v1.17.01                                                  #
-# Date:       06-Aug-2026                                               #
+# Version:    v1.18.00                                                  #
+# Date:       08-Sep-2026                                               #
 #########################################################################
 
 # Version for display purposes
-Version="v1.17.01"
+Version="v1.18.00"
 
 # Have the databases passed integrity checks
 CheckedDB=0
@@ -40,6 +40,18 @@ SYSTMP="/tmp"
 
 # Global variable - main database
 CPPL=com.plexapp.plugins.library
+
+# Plex SQLite version (filled in by GetSQLiteVersion)
+SQLiteVersion=""
+SQLiteVersionNum=0
+
+# Minimum Plex SQLite version this release supports (3.44.0 == PMS 1.43.0)
+MinSQLiteVersionNum=34400
+
+# Results of the most recent CheckDB call
+CheckDBStructural=0
+CheckDBFTS=0
+CheckDBFTSTables=""
 
 # Initial timestamp
 TimeStamp="$(date "+%Y-%m-%d_%H.%M.%S")"
@@ -78,6 +90,17 @@ FTS_TABLE_QUERY="$FTS_TABLE_QUERY AND name NOT LIKE '%_stat'"
 FTS_TABLE_QUERY="$FTS_TABLE_QUERY AND name NOT LIKE '%_docsize'"
 FTS_TABLE_QUERY="$FTS_TABLE_QUERY ORDER BY name;"
 
+# Count how many of the 8 triggers PMS 1.43 uses to maintain the ICU FTS4 tables exist
+FTS_TRIGGER_QUERY="SELECT count(*) FROM sqlite_master WHERE type='trigger' AND name IN ("
+FTS_TRIGGER_QUERY="$FTS_TRIGGER_QUERY 'fts4_metadata_titles_before_update_icu',"
+FTS_TRIGGER_QUERY="$FTS_TRIGGER_QUERY 'fts4_metadata_titles_before_delete_icu',"
+FTS_TRIGGER_QUERY="$FTS_TRIGGER_QUERY 'fts4_metadata_titles_after_update_icu',"
+FTS_TRIGGER_QUERY="$FTS_TRIGGER_QUERY 'fts4_metadata_titles_after_insert_icu',"
+FTS_TRIGGER_QUERY="$FTS_TRIGGER_QUERY 'fts4_tag_titles_before_update_icu',"
+FTS_TRIGGER_QUERY="$FTS_TRIGGER_QUERY 'fts4_tag_titles_before_delete_icu',"
+FTS_TRIGGER_QUERY="$FTS_TRIGGER_QUERY 'fts4_tag_titles_after_update_icu',"
+FTS_TRIGGER_QUERY="$FTS_TRIGGER_QUERY 'fts4_tag_titles_after_insert_icu');"
+
 # If LC_ALL is null,  default to C
 [ "$LC_ALL" = "" ] && export LC_ALL=C
 
@@ -102,21 +125,113 @@ WriteLog() {
   return 0
 }
 
+# Determine which SQLite version Plex SQLite provides and confirm it is usable
+GetSQLiteVersion() {
+
+  SQLiteVersion="$("$PLEX_SQLITE" :memory: 'select sqlite_version();' 2>/dev/null)"
+
+  if [ "$SQLiteVersion" = "" ]; then
+    Output "ERROR:  Unable to determine the 'Plex SQLite' version.  Cannot continue."
+    WriteLog "Session - Unable to determine Plex SQLite version - FAIL"
+    exit 3
+  fi
+
+  # Convert the dotted version into one comparable number  (3.53.3 -> 35303)
+  SQLiteVersionNum="$(echo "$SQLiteVersion" | awk -F. '{printf "%d", ($1 * 10000) + ($2 * 100) + $3}')"
+  [ "$SQLiteVersionNum" = "" ] && SQLiteVersionNum=0
+
+  # Always record which SQLite we are working with
+  WriteLog "Session - Plex SQLite version $SQLiteVersion"
+
+  # New enough ?
+  if [ $SQLiteVersionNum -lt $MinSQLiteVersionNum ]; then
+
+    if [ "$DBREPAIR_ALLOW_OLD_SQLITE" = "1" ]; then
+      Output   "WARNING: Plex SQLite $SQLiteVersion is older than 3.44.0 (PMS 1.42.x or earlier)."
+      Output   "         DBREPAIR_ALLOW_OLD_SQLITE=1 given.  Continuing at your own risk."
+      WriteLog "Session - DBREPAIR_ALLOW_OLD_SQLITE=1 override used (Plex SQLite $SQLiteVersion)"
+      return 0
+    fi
+
+    Output   "ERROR:  This release of DBRepair requires PMS 1.43.0 or later (Plex SQLite 3.44.0 or later)."
+    Output   "        This host provides Plex SQLite $SQLiteVersion."
+    Output   "        PMS 1.42.x and earlier must use DBRepair v1.17.01."
+    Output   "        (Set DBREPAIR_ALLOW_OLD_SQLITE=1 to override.  Not recommended.)"
+    WriteLog "Session - Plex SQLite $SQLiteVersion is older than 3.44.0.  PMS 1.43.0+ required - FAIL"
+    exit 3
+  fi
+
+  return 0
+}
+
 # Check given database file integrity
+#
+# Since SQLite 3.44 (PMS 1.43.x ships 3.53.3), 'PRAGMA integrity_check' also
+# validates the content of FTS3/FTS4 virtual tables and reports lines such as
+#   'malformed inverted index for FTS4 table main.fts4_metadata_titles_icu'
+# Those findings are FTS index drift, NOT structural database damage, and a
+# dump/reload (Repair) cannot correct them.  They are classified separately so
+# a perfectly good database is not declared damaged.
+#
+# Sets: SQLerror, CheckDBStructural, CheckDBFTS, CheckDBFTSTables, FTSDamaged
+# Returns 0 when there is no structural damage (FTS drift alone is not a failure)
 CheckDB() {
 
   # Confirm the DB exists
   [ ! -f "$1" ] && Output "ERROR: $1 does not exist." && return 1
 
-  # Now check database for corruption
-  Result="$("$PLEX_SQLITE" "$1" "PRAGMA integrity_check(1)")"
-  if [ "$Result" = "ok" ]; then
-    return 0
-  else
-     SQLerror="$(echo $Result | sed -e 's/.*code //')"
+  # Clear the per-call results
+  CheckDBStructural=0
+  CheckDBFTS=0
+  CheckDBFTSTables=""
+  SQLerror=0
+
+  # Now check database for corruption (ask for detail, not just the first line)
+  Result="$("$PLEX_SQLITE" "$1" "PRAGMA integrity_check(20)" 2>&1)"
+
+  # No output at all means the check could not be run
+  if [ "$Result" = "" ]; then
+    SQLerror="No result from integrity_check"
+    CheckDBStructural=1
     return 1
   fi
 
+  # Classify every line returned
+  SavedIFS="$IFS"
+  IFS="
+"
+  for Line in $Result
+  do
+    # 'ok' and empty lines are not findings
+    [ "$Line" = "ok" ] && continue
+    [ "$Line" = "" ]   && continue
+
+    if echo "$Line" | grep -i 'inverted index' > /dev/null 2>&1 ; then
+
+      # FTS index drift.  Record which table.
+      CheckDBFTS=1
+      FTSDamaged=1
+      FTSTableName="$(echo "$Line" | sed -e 's/:.*//' | awk '{print $NF}')"
+      CheckDBFTSTables="$CheckDBFTSTables $FTSTableName"
+    else
+
+      # Anything else is real (structural) damage
+      CheckDBStructural=1
+      SQLerror="$(echo $Line | sed -e 's/.*code //')"
+    fi
+  done
+  IFS="$SavedIFS"
+
+  # Log FTS-only findings so the logfile records what was seen
+  if [ $CheckDBFTS -eq 1 ] && [ $CheckDBStructural -eq 0 ]; then
+    WriteLog "CheckDB - $1 - FTS index rebuild needed:$CheckDBFTSTables"
+  elif [ $CheckDBFTS -eq 1 ]; then
+    WriteLog "CheckDB - $1 - FTS index rebuild needed (with structural damage):$CheckDBFTSTables"
+  fi
+
+  # Only structural damage is a failure
+  [ $CheckDBStructural -eq 1 ] && return 1
+  return 0
 }
 
 # Check all databases
@@ -136,18 +251,28 @@ CheckDatabases() {
   # Do we need to check
   if [ $NeedCheck -eq 1 ]; then
 
-    # Clear Damaged flag
+    # Clear Damaged flag.  'Damaged' reflects STRUCTURAL damage only.
     Damaged=0
     CheckedDB=0
+    FTSDamaged=0
+    FTSDamagedMain=0
+    FTSDamagedBlobs=0
 
     # Info
     Output "Checking the PMS databases"
 
     # Check main DB
     if CheckDB $CPPL.db ; then
-      Output "Check complete.  PMS main database is OK."
-      WriteLog "$1"" - Check $CPPL.db - PASS"
+      [ $CheckDBFTS -eq 1 ] && FTSDamagedMain=1
+      if [ $CheckDBFTS -eq 1 ]; then
+        Output "Check complete.  PMS main database is OK.  (FTS indexes need rebuilding.)"
+        WriteLog "$1"" - Check $CPPL.db - PASS (FTS rebuild needed:$CheckDBFTSTables)"
+      else
+        Output "Check complete.  PMS main database is OK."
+        WriteLog "$1"" - Check $CPPL.db - PASS"
+      fi
     else
+      [ $CheckDBFTS -eq 1 ] && FTSDamagedMain=1
       Output "Check complete.  PMS main database is damaged."
       WriteLog "$1"" - Check $CPPL.db - FAIL ($SQLerror)"
       Damaged=1
@@ -155,13 +280,26 @@ CheckDatabases() {
 
     # Check blobs DB
     if CheckDB $CPPL.blobs.db ; then
-      Output "Check complete.  PMS blobs database is OK."
-      WriteLog "$1"" - Check $CPPL.blobs.db - PASS"
+      [ $CheckDBFTS -eq 1 ] && FTSDamagedBlobs=1
+      if [ $CheckDBFTS -eq 1 ]; then
+        Output "Check complete.  PMS blobs database is OK.  (FTS indexes need rebuilding.)"
+        WriteLog "$1"" - Check $CPPL.blobs.db - PASS (FTS rebuild needed:$CheckDBFTSTables)"
+      else
+        Output "Check complete.  PMS blobs database is OK."
+        WriteLog "$1"" - Check $CPPL.blobs.db - PASS"
+      fi
 
     else
+      [ $CheckDBFTS -eq 1 ] && FTSDamagedBlobs=1
       Output "Check complete.  PMS blobs database is damaged."
       WriteLog "$1"" - Check $CPPL.blobs.db - FAIL ($SQLerror)"
       Damaged=1
+    fi
+
+    # FTS index drift is not database damage.  Say so plainly.
+    if [ $FTSDamaged -eq 1 ]; then
+      Output "Note:  FTS (Full-Text Search) indexes need rebuilding.  This is not a damaged database."
+      WriteLog "$1"" - FTS rebuild needed"
     fi
 
     # Yes, we've now checked it
@@ -176,7 +314,72 @@ CheckDatabases() {
 
 # Global flags for FTS status (separate from main DB)
 FTSDamaged=0
+FTSDamagedMain=0
+FTSDamagedBlobs=0
 CheckedFTS=0
+
+# Set by CheckFTSDatabase when the database carries no FTS4 tables
+CheckFTSNoTables=0
+
+# Check the FTS4 indexes of a single database
+#
+# Arg1 = database file
+# Arg2 = label ("" for the main database, "blobs" for the blobs database)
+# Arg3 = calling function name for logging
+#
+# Sets: CheckFTSNoTables (1 when this database has no FTS4 tables at all)
+# Returns 0 when every FTS index passed, 1 when one or more need rebuilding
+CheckFTSDatabase() {
+
+  local DBFile="$1"
+  local Label="$2"
+  local Caller="$3"
+  local OutSuffix=""
+  local LogSuffix=""
+  local DBFail=0
+  local Tables
+  local Table
+  local ExitCode
+
+  CheckFTSNoTables=0
+
+  # The blobs database findings are tagged so they are distinguishable
+  if [ "$Label" != "" ]; then
+    OutSuffix=" ($Label)"
+    LogSuffix=" ($Label)"
+  fi
+
+  # Get list of FTS4 virtual tables (exclude shadow tables)
+  Tables="$("$PLEX_SQLITE" "$DBFile" "$FTS_TABLE_QUERY" 2>&1)"
+
+  if [ -z "$Tables" ]; then
+    CheckFTSNoTables=1
+    return 0
+  fi
+
+  # Check each FTS table
+  for Table in $Tables
+  do
+    Result="$("$PLEX_SQLITE" "$DBFile" "INSERT INTO $Table($Table) VALUES('integrity-check');" 2>&1)"
+    ExitCode=$?
+
+    if [ $ExitCode -eq 0 ] && [ -z "$Result" ]; then
+      Output "  FTS index '$Table'$OutSuffix - OK"
+      WriteLog "$Caller - FTS Check$LogSuffix: $Table - PASS"
+    else
+      if echo "$Result" | grep -i -e malformed -e corrupt -e 'inverted index' > /dev/null 2>&1 ; then
+        Output "  FTS index '$Table'$OutSuffix - NEEDS REBUILD"
+      else
+        Output "  FTS index '$Table'$OutSuffix - ERROR (index could not be validated)"
+      fi
+      Output "    Detail: $Result"
+      WriteLog "$Caller - FTS Check$LogSuffix: $Table - FAIL ($Result)"
+      DBFail=1
+    fi
+  done
+
+  return $DBFail
+}
 
 # Check FTS (Full-Text Search) index integrity
 CheckFTS() {
@@ -184,56 +387,30 @@ CheckFTS() {
   # Arg1 = calling function name for logging
 
   FTSDamaged=0
+  FTSDamagedMain=0
+  FTSDamagedBlobs=0
   local Caller="${1:-Check}"
   local FTSFail=0
 
   Output "Checking FTS (Full-Text Search) indexes"
 
-  # Get list of FTS4 virtual tables (exclude shadow tables)
-  FTSTables="$("$PLEX_SQLITE" $CPPL.db "$FTS_TABLE_QUERY" 2>&1)"
+  # Main database
+  if ! CheckFTSDatabase "$CPPL.db" "" "$Caller"; then
+    FTSFail=1
+    FTSDamagedMain=1
+  fi
 
-  if [ -z "$FTSTables" ]; then
+  # No FTS4 tables in the main database means there is nothing to check at all
+  if [ $CheckFTSNoTables -eq 1 ]; then
     Output "No FTS4 tables found in main database."
     WriteLog "$Caller - FTS Check - No FTS4 tables"
     return 0
   fi
 
-  # Check each FTS table
-  for Table in $FTSTables
-  do
-    Result="$("$PLEX_SQLITE" $CPPL.db "INSERT INTO $Table($Table) VALUES('integrity-check');" 2>&1)"
-    ExitCode=$?
-
-    if [ $ExitCode -eq 0 ] && [ -z "$Result" ]; then
-      Output "  FTS index '$Table' - OK"
-      WriteLog "$Caller - FTS Check: $Table - PASS"
-    else
-      Output "  FTS index '$Table' - DAMAGED"
-      Output "    Error: $Result"
-      WriteLog "$Caller - FTS Check: $Table - FAIL ($Result)"
-      FTSFail=1
-    fi
-  done
-
-  # Check blobs database FTS tables
-  FTSTablesBlobs="$("$PLEX_SQLITE" $CPPL.blobs.db "$FTS_TABLE_QUERY" 2>&1)"
-
-  if [ -n "$FTSTablesBlobs" ]; then
-    for Table in $FTSTablesBlobs
-    do
-      Result="$("$PLEX_SQLITE" $CPPL.blobs.db "INSERT INTO $Table($Table) VALUES('integrity-check');" 2>&1)"
-      ExitCode=$?
-
-      if [ $ExitCode -eq 0 ] && [ -z "$Result" ]; then
-        Output "  FTS index '$Table' (blobs) - OK"
-        WriteLog "$Caller - FTS Check (blobs): $Table - PASS"
-      else
-        Output "  FTS index '$Table' (blobs) - DAMAGED"
-        Output "    Error: $Result"
-        WriteLog "$Caller - FTS Check (blobs): $Table - FAIL ($Result)"
-        FTSFail=1
-      fi
-    done
+  # Blobs database (silently skipped when it carries no FTS4 tables)
+  if ! CheckFTSDatabase "$CPPL.blobs.db" "blobs" "$Caller"; then
+    FTSFail=1
+    FTSDamagedBlobs=1
   fi
 
   CheckedFTS=1
@@ -242,7 +419,7 @@ CheckFTS() {
     WriteLog "$Caller - FTS Check - PASS"
     FTSDamaged=0
   else
-    Output "FTS integrity check complete. One or more FTS indexes are DAMAGED."
+    Output "FTS integrity check complete. One or more FTS indexes need rebuilding."
     Output "Use 'reindex' command (option 6) or 'automatic' (option 2) to rebuild."
     WriteLog "$Caller - FTS Check - FAIL"
     FTSDamaged=1
@@ -413,10 +590,18 @@ RestoreSaved() {
 
   T="$1"
 
-  for i in "db" "db-wal" "db-shm" "blobs.db" "blobs.db-wal" "blobs.db-shm"
+  # Restore each database which has a saved backup (main and/or blobs).
+  # Backups may be selective (FTS rebuild of a single database), so a database
+  # with no saved backup is left exactly as it is.
+  for Base in "db" "blobs.db"
   do
-    [ -e "${CPPL}.${i}" ] && rm -f "${CPPL}.${i}"
-    [ -e "$DBTMP/${CPPL}.${i}-BACKUP-$T" ] && mv "$DBTMP/${CPPL}.${i}-BACKUP-$T" "${CPPL}.${i}"
+    [ ! -e "$DBTMP/${CPPL}.${Base}-BACKUP-$T" ] && continue
+
+    for i in "$Base" "${Base}-wal" "${Base}-shm"
+    do
+      [ -e "${CPPL}.${i}" ] && rm -f "${CPPL}.${i}"
+      [ -e "$DBTMP/${CPPL}.${i}-BACKUP-$T" ] && mv "$DBTMP/${CPPL}.${i}-BACKUP-$T" "${CPPL}.${i}"
+    done
   done
 }
 
@@ -1055,10 +1240,6 @@ DoIndex() {
 ##### FTS REBUILD
 DoFTSRebuild() {
 
-    # EMERGENCY PATCH
-    Output "Temporary Patch:  FTS Rebuilding disabled as of PMS 1.43.x and Plex discussions until resolved."
-    return 0 
-
     # Clear flags
     Damaged=0
     Fail=0
@@ -1071,9 +1252,10 @@ DoFTSRebuild() {
       [ $IgnoreErrors -eq 1 ] && Fail=0
     fi
 
-    # If damaged, warn but allow continue (FTS corruption often passes integrity_check)
+    # If structurally damaged, warn but allow continue.
+    # (FTS-only drift does not set Damaged, so this never blocks an FTS rebuild.)
     if [ $Damaged -eq 1 ] && [ $IgnoreErrors -eq 0 ]; then
-      Output "WARNING: Database integrity check failed."
+      Output "WARNING: Database structural integrity check failed."
       Output "FTS rebuild may still help if the corruption is isolated to FTS indexes."
       if ! ConfirmYesNo "Continue with FTS rebuild anyway? "; then
         Output "FTS rebuild cancelled."
@@ -1081,10 +1263,53 @@ DoFTSRebuild() {
       fi
     fi
 
-    # Make backup
+    # Which databases actually need the rebuild ?
+    # When exactly one of them is known to have drifted,  only that database is
+    # backed up and rebuilt.  (Avoids copying a multi-GB blobs database needlessly.)
+    # When neither is flagged (manual invocation / unknown state) both are done.
+    RebuildMain=1
+    RebuildBlobs=1
+
+    if [ $FTSDamagedMain -eq 1 ] && [ $FTSDamagedBlobs -eq 0 ]; then
+      RebuildBlobs=0
+    elif [ $FTSDamagedBlobs -eq 1 ] && [ $FTSDamagedMain -eq 0 ]; then
+      RebuildMain=0
+    fi
+
+    if [ $RebuildMain -eq 1 ] && [ $RebuildBlobs -eq 1 ]; then
+      WriteLog "FTSRbld - Databases selected: $CPPL.db $CPPL.blobs.db"
+    elif [ $RebuildMain -eq 1 ]; then
+      Output "Only the main database FTS indexes need rebuilding."
+      WriteLog "FTSRbld - Databases selected: $CPPL.db"
+    else
+      Output "Only the blobs database FTS indexes need rebuilding."
+      WriteLog "FTSRbld - Databases selected: $CPPL.blobs.db"
+    fi
+
+    # Make backup (only of the database(s) about to be modified)
     Output "Backing up databases"
-    MakeBackups "FTSRbld"
-    Result=$?
+    Result=0
+
+    if [ $RebuildMain -eq 1 ] && [ $RebuildBlobs -eq 1 ]; then
+      MakeBackups "FTSRbld"
+      Result=$?
+    else
+
+      Output "Backup current database with '-BACKUP-$TimeStamp' timestamp."
+
+      if [ $RebuildMain -eq 1 ]; then
+        BackupFiles="db db-wal db-shm"
+      else
+        BackupFiles="blobs.db blobs.db-wal blobs.db-shm"
+      fi
+
+      for i in $BackupFiles
+      do
+        DoBackup "FTSRbld" "${CPPL}.${i}" "$DBTMP/${CPPL}.${i}-BACKUP-$TimeStamp"
+        [ $? -ne 0 ] && Result=1
+      done
+    fi
+
     [ $IgnoreErrors -eq 1 ] && Result=0
 
     if [ $Result -eq 0 ]; then
@@ -1096,109 +1321,217 @@ DoFTSRebuild() {
       return 1
     fi
 
-    # Get list of FTS4 tables (exclude shadow tables)
-    Output "Scanning for FTS4 tables in main database..."
+    # Rebuild the main database FTS indexes
+    if [ $RebuildMain -eq 1 ]; then
 
-    FTSTables="$("$PLEX_SQLITE" $CPPL.db "$FTS_TABLE_QUERY" 2>&1)"
-    Result=$?
+      # Get list of FTS4 tables (exclude shadow tables)
+      Output "Scanning for FTS4 tables in main database..."
 
-    if ! SQLiteOK $Result; then
-      Output "Error scanning for FTS tables. Error code $Result"
-      WriteLog "FTSRbld - Scan FTS tables - FAIL ($Result)"
-      Fail=1
-      RestoreSaved "$TimeStamp"
-      return 1
-    fi
-
-    # If no FTS tables found, nothing to do
-    if [ -z "$FTSTables" ]; then
-      Output "No FTS4 tables found in database."
-      WriteLog "FTSRbld - No FTS4 tables found"
-      return 0
-    fi
-
-    Output "Found FTS4 tables:"
-    for Table in $FTSTables
-    do
-      Output "  - $Table"
-    done
-    Output ""
-
-    # Rebuild each FTS table
-    Output "Rebuilding FTS4 indexes in main database..."
-    for Table in $FTSTables
-    do
-      Output "  Rebuilding $Table..."
-
-      "$PLEX_SQLITE" $CPPL.db "INSERT INTO $Table($Table) VALUES('rebuild');" 2>&1
+      FTSTables="$("$PLEX_SQLITE" $CPPL.db "$FTS_TABLE_QUERY" 2>&1)"
       Result=$?
-      [ $IgnoreErrors -eq 1 ] && Result=0
 
-      if SQLiteOK $Result; then
-        Output "    $Table rebuilt successfully."
-        WriteLog "FTSRbld - Rebuild: $Table - PASS"
-      else
-        Output "    $Table rebuild failed. Error code $Result"
-        WriteLog "FTSRbld - Rebuild: $Table - FAIL ($Result)"
+      if ! SQLiteOK $Result; then
+        Output "Error scanning for FTS tables. Error code $Result"
+        WriteLog "FTSRbld - Scan FTS tables - FAIL ($Result)"
         Fail=1
+        RestoreSaved "$TimeStamp"
+        return 1
       fi
-    done
 
-    # Check blobs database for FTS tables
-    Output ""
-    Output "Scanning for FTS4 tables in blobs database..."
+      # If no FTS tables found, nothing to do in this database
+      if [ -z "$FTSTables" ]; then
+        Output "No FTS4 tables found in database."
+        WriteLog "FTSRbld - No FTS4 tables found"
+      else
+        Output "Found FTS4 tables:"
+        for Table in $FTSTables
+        do
+          Output "  - $Table"
+        done
+        Output ""
 
-    FTSTablesBlobs="$("$PLEX_SQLITE" $CPPL.blobs.db "$FTS_TABLE_QUERY" 2>&1)"
-    Result=$?
+        # Rebuild each FTS table
+        Output "Rebuilding FTS4 indexes in main database..."
+        for Table in $FTSTables
+        do
+          Output "  Rebuilding $Table..."
 
-    if ! SQLiteOK $Result; then
-      Output "Error scanning blobs database for FTS tables. Error code $Result"
-      WriteLog "FTSRbld - Scan FTS tables (blobs) - FAIL ($Result)"
-      # Don't fail entirely if blobs scan fails - main DB may be OK
-    elif [ -z "$FTSTablesBlobs" ]; then
-      Output "No FTS4 tables found in blobs database."
-      WriteLog "FTSRbld - No FTS4 tables in blobs database"
-    else
-      Output "Found FTS4 tables in blobs database:"
-      for Table in $FTSTablesBlobs
-      do
-        Output "  - $Table"
-      done
+          "$PLEX_SQLITE" $CPPL.db "INSERT INTO $Table($Table) VALUES('rebuild');" 2>&1
+          Result=$?
+          [ $IgnoreErrors -eq 1 ] && Result=0
+
+          if SQLiteOK $Result; then
+            Output "    $Table rebuilt successfully."
+            WriteLog "FTSRbld - Rebuild: $Table - PASS"
+          else
+            Output "    $Table rebuild failed. Error code $Result"
+            WriteLog "FTSRbld - Rebuild: $Table - FAIL ($Result)"
+            Fail=1
+          fi
+        done
+      fi
+    fi
+
+    # Rebuild the blobs database FTS indexes
+    if [ $RebuildBlobs -eq 1 ]; then
+
+      # Check blobs database for FTS tables
       Output ""
+      Output "Scanning for FTS4 tables in blobs database..."
 
-      Output "Rebuilding FTS4 indexes in blobs database..."
-      for Table in $FTSTablesBlobs
-      do
-        Output "  Rebuilding $Table..."
+      FTSTablesBlobs="$("$PLEX_SQLITE" $CPPL.blobs.db "$FTS_TABLE_QUERY" 2>&1)"
+      Result=$?
 
-        "$PLEX_SQLITE" $CPPL.blobs.db "INSERT INTO $Table($Table) VALUES('rebuild');" 2>&1
-        Result=$?
-        [ $IgnoreErrors -eq 1 ] && Result=0
+      if ! SQLiteOK $Result; then
+        Output "Error scanning blobs database for FTS tables. Error code $Result"
+        WriteLog "FTSRbld - Scan FTS tables (blobs) - FAIL ($Result)"
+        # Don't fail entirely if blobs scan fails - main DB may be OK
+      elif [ -z "$FTSTablesBlobs" ]; then
+        Output "No FTS4 tables found in blobs database."
+        WriteLog "FTSRbld - No FTS4 tables in blobs database"
+      else
+        Output "Found FTS4 tables in blobs database:"
+        for Table in $FTSTablesBlobs
+        do
+          Output "  - $Table"
+        done
+        Output ""
 
-        if SQLiteOK $Result; then
-          Output "    $Table rebuilt successfully."
-          WriteLog "FTSRbld - Rebuild (blobs): $Table - PASS"
-        else
-          Output "    $Table rebuild failed. Error code $Result"
-          WriteLog "FTSRbld - Rebuild (blobs): $Table - FAIL ($Result)"
-          Fail=1
-        fi
-      done
+        Output "Rebuilding FTS4 indexes in blobs database..."
+        for Table in $FTSTablesBlobs
+        do
+          Output "  Rebuilding $Table..."
+
+          "$PLEX_SQLITE" $CPPL.blobs.db "INSERT INTO $Table($Table) VALUES('rebuild');" 2>&1
+          Result=$?
+          [ $IgnoreErrors -eq 1 ] && Result=0
+
+          if SQLiteOK $Result; then
+            Output "    $Table rebuilt successfully."
+            WriteLog "FTSRbld - Rebuild (blobs): $Table - PASS"
+          else
+            Output "    $Table rebuild failed. Error code $Result"
+            WriteLog "FTSRbld - Rebuild (blobs): $Table - FAIL ($Result)"
+            Fail=1
+          fi
+        done
+      fi
     fi
 
     Output ""
     Output "FTS rebuild complete."
 
-    if [ $Fail -eq 0 ]; then
-      SetLast "FTSRbld" "$TimeStamp"
-      WriteLog "FTSRbld - PASS"
-    else
+    # If any rebuild command failed, put the databases back the way we found them
+    if [ $Fail -ne 0 ]; then
       Output "Some FTS tables failed to rebuild. Restoring backup."
       RestoreSaved "$TimeStamp"
       WriteLog "FTSRbld - FAIL"
+      return $Fail
+    fi
+
+    # Re-verify the rebuilt indexes
+    Output ""
+    if ! CheckFTS "FTSRbld"; then
+      Output "FTS rebuild did not produce a verified-clean index."
+      WriteLog "FTSRbld - Verify - FAIL"
+      Fail=1
+    else
+      WriteLog "FTSRbld - Verify - PASS"
+    fi
+
+    # Confirm the triggers which maintain the FTS indexes are all present
+    Output ""
+    DoTriggers "FTSRbld"
+
+    if [ $Fail -eq 0 ]; then
+      SetLast "FTSRbld" "$TimeStamp"
+      WriteLog "FTSRbld - PASS"
     fi
 
     return $Fail
+}
+
+##### FTS TRIGGERS  (verify / recreate the 8 triggers PMS uses to maintain FTS)
+DoTriggers() {
+
+    # Arg1 = calling function name for logging
+    TriggerCaller="${1:-Trigger}"
+    TriggerFail=0
+
+    # Never modify the databases while PMS is running
+    if IsRunning; then
+      Output   "Unable to verify FTS triggers.  PMS is running. Please stop PlexMediaServer."
+      WriteLog "$TriggerCaller - Triggers - FAIL - PMS running"
+      return 1
+    fi
+
+    Output "Verifying the FTS maintenance triggers"
+
+    for TriggerDB in $CPPL.db $CPPL.blobs.db
+    do
+      [ ! -f "$TriggerDB" ] && continue
+
+      # Only databases carrying the ICU FTS tables need these triggers
+      HaveFTS="$("$PLEX_SQLITE" "$TriggerDB" "select count(*) from sqlite_master where type='table' and name='fts4_metadata_titles_icu';" 2>/dev/null)"
+      if [ "$HaveFTS" != "1" ]; then
+        Output "  $TriggerDB - No ICU FTS tables.  Nothing to do."
+        WriteLog "$TriggerCaller - Triggers: $TriggerDB - SKIP (no ICU FTS tables)"
+        continue
+      fi
+
+      TriggerCount="$("$PLEX_SQLITE" "$TriggerDB" "$FTS_TRIGGER_QUERY" 2>/dev/null)"
+      [ "$TriggerCount" = "" ] && TriggerCount=0
+
+      if [ $TriggerCount -eq 8 ]; then
+        Output "  $TriggerDB - All 8 FTS triggers present."
+        WriteLog "$TriggerCaller - Triggers: $TriggerDB - PASS (8 of 8)"
+        continue
+      fi
+
+      Output "  $TriggerDB - Only $TriggerCount of 8 FTS triggers present.  Recreating the missing triggers."
+      WriteLog "$TriggerCaller - Triggers: $TriggerDB - INCOMPLETE ($TriggerCount of 8)"
+
+      "$PLEX_SQLITE" "$TriggerDB" << EOF
+CREATE TRIGGER IF NOT EXISTS fts4_metadata_titles_before_update_icu BEFORE UPDATE OF title, title_sort, original_title ON metadata_items BEGIN DELETE FROM fts4_metadata_titles_icu WHERE docid=old.rowid; END;
+CREATE TRIGGER IF NOT EXISTS fts4_metadata_titles_before_delete_icu BEFORE DELETE ON metadata_items BEGIN DELETE FROM fts4_metadata_titles_icu WHERE docid=old.rowid; END;
+CREATE TRIGGER IF NOT EXISTS fts4_metadata_titles_after_update_icu AFTER UPDATE OF title, title_sort, original_title ON metadata_items BEGIN INSERT INTO fts4_metadata_titles_icu(docid, title, title_sort, original_title) VALUES(new.rowid, new.title, new.title_sort, new.original_title); END;
+CREATE TRIGGER IF NOT EXISTS fts4_metadata_titles_after_insert_icu AFTER INSERT ON metadata_items BEGIN INSERT INTO fts4_metadata_titles_icu(docid, title, title_sort, original_title) VALUES(new.rowid, new.title, new.title_sort, new.original_title); END;
+CREATE TRIGGER IF NOT EXISTS fts4_tag_titles_before_update_icu BEFORE UPDATE OF tag, tag_type ON tags BEGIN DELETE FROM fts4_tag_titles_icu WHERE docid=old.rowid; END;
+CREATE TRIGGER IF NOT EXISTS fts4_tag_titles_before_delete_icu BEFORE DELETE ON tags BEGIN DELETE FROM fts4_tag_titles_icu WHERE docid=old.rowid; END;
+CREATE TRIGGER IF NOT EXISTS fts4_tag_titles_after_update_icu AFTER UPDATE OF tag, tag_type ON tags WHEN new.tag_type in (0,1,2,4,6,207,400) BEGIN INSERT INTO fts4_tag_titles_icu(docid, tag) VALUES(new.rowid, new.tag); END;
+CREATE TRIGGER IF NOT EXISTS fts4_tag_titles_after_insert_icu AFTER INSERT ON tags WHEN new.tag_type in (0,1,2,4,6,207,400) BEGIN INSERT INTO fts4_tag_titles_icu(docid, tag) VALUES(new.rowid, new.tag); END;
+EOF
+      Result=$?
+      [ $IgnoreErrors -eq 1 ] && Result=0
+
+      if ! SQLiteOK $Result; then
+        Output "    Error $Result while recreating the FTS triggers in $TriggerDB"
+        WriteLog "$TriggerCaller - Triggers: $TriggerDB - FAIL ($Result)"
+        TriggerFail=1
+        continue
+      fi
+
+      # Confirm they are all there now
+      TriggerCount="$("$PLEX_SQLITE" "$TriggerDB" "$FTS_TRIGGER_QUERY" 2>/dev/null)"
+      [ "$TriggerCount" = "" ] && TriggerCount=0
+
+      if [ $TriggerCount -eq 8 ]; then
+        Output "    FTS triggers recreated.  All 8 now present."
+        WriteLog "$TriggerCaller - Triggers: $TriggerDB - PASS (recreated, 8 of 8)"
+      else
+        Output "    FTS triggers still incomplete ($TriggerCount of 8)."
+        WriteLog "$TriggerCaller - Triggers: $TriggerDB - FAIL (recreated, $TriggerCount of 8)"
+        TriggerFail=1
+      fi
+    done
+
+    if [ $TriggerFail -eq 0 ]; then
+      WriteLog "$TriggerCaller - Triggers - PASS"
+    else
+      WriteLog "$TriggerCaller - Triggers - FAIL"
+    fi
+
+    return $TriggerFail
 }
 
 ##### UNDO
@@ -1414,6 +1747,11 @@ DoRepair() {
       SizeFinish=$(GetSize "$TMPDIR/$CPPL.db-REPAIR-$TimeStamp")
       Output "Verification complete.  PMS main database is OK."
       WriteLog "Repair  - Verify main database - PASS (Size: ${SizeStart}MB/${SizeFinish}MB)."
+      if [ $CheckDBFTS -eq 1 ]; then
+        Output "NOTE:  The FTS (Full-Text Search) indexes still need rebuilding."
+        Output "       Repair (dump/reload) cannot rebuild them.  Use 'automatic' (option 2) or 'reindex' (option 6)."
+        WriteLog "Repair  - Verify main database - FTS rebuild needed:$CheckDBFTSTables"
+      fi
     else
       Output "Verification complete.  PMS main database import failed."
       WriteLog "Repair  - Verify main database - FAIL ($SQLerror)"
@@ -1426,6 +1764,11 @@ DoRepair() {
       SizeFinish=$(GetSize "$TMPDIR/$CPPL.blobs.db-REPAIR-$TimeStamp")
       Output "Verification complete.  PMS blobs database is OK."
       WriteLog "Repair  - Verify blobs database - PASS (Size: ${SizeStart}MB/${SizeFinish}MB)."
+      if [ $CheckDBFTS -eq 1 ]; then
+        Output "NOTE:  The blobs FTS (Full-Text Search) indexes still need rebuilding."
+        Output "       Repair (dump/reload) cannot rebuild them.  Use 'automatic' (option 2) or 'reindex' (option 6)."
+        WriteLog "Repair  - Verify blobs database - FTS rebuild needed:$CheckDBFTSTables"
+      fi
     else
       Output "Verification complete.  PMS blobs database import failed."
       WriteLog "Repair  - Verify main database - FAIL ($SQLerror)"
@@ -2385,6 +2728,9 @@ if [ ! -f "$PLEX_SQLITE" ] ; then
   exit 1
 fi
 
+# Confirm 'Plex SQLite' is new enough for this release (PMS 1.43.0 / SQLite 3.44.0)
+GetSQLiteVersion
+
 # Set tmp dir so we don't use RAM when in DBDIR
 DBTMP="./dbtmp"
 mkdir -p "$DBDIR/$DBTMP"
@@ -2435,6 +2781,7 @@ do
   echo " "
   echo "      Database Repair Utility for Plex Media Server  ($HostType)"
   echo "                       Version $Version"
+  echo "      Plex SQLite $SQLiteVersion"
   echo " "
 
   # Print info if Manual
@@ -2457,7 +2804,7 @@ do
       echo ""
       [ $HaveStartStop -gt 0 ] && echo "  1 - 'stop'      - Stop PMS."
       [ $HaveStartStop -eq 0 ] && echo "  1 - 'stop'      - (Not available. Stop manually.)"
-      echo "  2 - 'automatic' - Check, Repair/Optimize, Reindex, and FTS rebuild in one step."
+      echo "  2 - 'automatic' - Check, Rebuild FTS, Repair/Optimize, Reindex."
       echo "  3 - 'check'     - Perform integrity check of database and FTS indexes."
       echo "  4 - 'vacuum'    - Remove empty space from database without optimizing."
       echo "  5 - 'repair'    - Repair/Optimize databases."
@@ -2552,10 +2899,14 @@ do
         fi
 
         # Start auto
-        Output "Automatic Check,Repair,Index started."
+        Output "Automatic Check, Rebuild FTS, Repair/Optimize, Reindex started."
         WriteLog "Auto    - START"
 
-        # Check the databases (forced)
+        # Check the databases first (forced).  Since SQLite 3.44 the structural
+        # integrity check also validates the FTS content,  so this single pass
+        # tells us both whether the databases are damaged and whether the FTS
+        # indexes have drifted (FTSDamaged / per-database flags).
+        DoUpdateTimestamp
         Output ""
         if CheckDatabases "Check  " force ; then
           WriteLog "Check   - PASS"
@@ -2564,6 +2915,29 @@ do
           WriteLog "Check   - FAIL"
           CheckedDB=0
           continue
+        fi
+
+        # FTS before Repair.  Repair (dump/reload) copies the FTS shadow tables verbatim,
+        # so FTS index drift must be rebuilt before anything else is done.
+        # (The check above already reported the drift;  only ask the FTS indexes
+        #  themselves when it came back clean.)
+        DoUpdateTimestamp
+        Output ""
+        if [ $FTSDamaged -eq 1 ] || ! CheckFTS "Auto   "; then
+          Output ""
+          Output "FTS indexes need rebuilding. Attempting automatic FTS rebuild..."
+          WriteLog "Auto    - FTS damaged, attempting rebuild"
+
+          if DoFTSRebuild; then
+            WriteLog "Auto    - FTS Rebuild - PASS (verified)"
+            Output "FTS rebuild successful and verified clean."
+          else
+            WriteLog "Auto    - FTS Rebuild - FAIL (unverified or still damaged)"
+            Output "FTS rebuild did not produce a verified-clean index.  Continuing with the remaining steps."
+            # Don't fail auto entirely - the rest of the sequence may still help
+          fi
+        else
+          WriteLog "Auto    - FTS Check - PASS"
         fi
 
         # Now Repair
@@ -2595,15 +2969,15 @@ do
           WriteLog "Reindex - PASS"
         fi
 
-        # Now check FTS indexes and repair if damaged
+        # Final FTS verification.  Rebuild once more if the repaired DB still drifts.
         DoUpdateTimestamp
         Output ""
         if ! CheckFTS "Auto   "; then
           Output ""
-          Output "FTS indexes are damaged. Attempting automatic FTS rebuild..."
-          WriteLog "Auto    - FTS damaged, attempting rebuild"
+          Output "FTS indexes need rebuilding following repair. Rebuilding..."
+          WriteLog "Auto    - FTS damaged after repair, attempting rebuild"
 
-          if DoFTSRebuild && CheckFTS "Auto   "; then
+          if DoFTSRebuild; then
             WriteLog "Auto    - FTS Rebuild - PASS (verified)"
             Output "FTS rebuild successful and verified clean."
           else
@@ -2617,7 +2991,7 @@ do
 
         # All good to here
         WriteLog "Auto    - COMPLETED"
-        Output   "Automatic Check, Repair/optimize, Index, & FTS check successful."
+        Output   "Automatic Check, FTS rebuild, Repair/optimize, & Index successful."
         ;;
 
 
@@ -2631,22 +3005,37 @@ do
           continue
         fi
 
-        # CHECK DBs
+        # CHECK DBs  (structural)
+        StructuralOK=1
         if CheckDatabases "Check  " force ; then
           WriteLog "Check   - PASS"
           CheckedDB=1
         else
           WriteLog "Check   - FAIL"
           CheckedDB=0
+          StructuralOK=0
         fi
 
-        # Also check FTS indexes (these can be damaged even when integrity_check passes)
+        # Also check FTS indexes (reported separately from database structure)
         Output ""
-        if ! CheckFTS "Check  "; then
-          Output ""
-          Output "NOTE: FTS indexes are damaged but main database structure is OK."
-          Output "      Use 'reindex' (option 6) or 'automatic' (option 2) to rebuild."
+        FTSOK=1
+        CheckFTS "Check  " || FTSOK=0
+
+        # Summarize both results clearly
+        Output ""
+        Output "Check results:"
+        if [ $StructuralOK -eq 1 ]; then
+          Output "  Database structure: OK"
+        else
+          Output "  Database structure: DAMAGED  (use 'repair' (option 5) or 'automatic' (option 2))"
         fi
+
+        if [ $FTSOK -eq 1 ]; then
+          Output "  FTS indexes:        OK"
+        else
+          Output "  FTS indexes:        NEED REBUILD  (use 'automatic' (option 2) or 'reindex' (option 6))"
+        fi
+        Output ""
         ;;
 
       # Vacuum
@@ -2715,10 +3104,10 @@ do
             Output ""
             if ! CheckFTS "Reindex"; then
               Output ""
-              Output "FTS indexes are damaged. Rebuilding..."
+              Output "FTS indexes need rebuilding. Rebuilding..."
               WriteLog "Reindex - FTS damaged, attempting rebuild"
 
-              if DoFTSRebuild && CheckFTS "Reindex"; then
+              if DoFTSRebuild; then
                 WriteLog "Reindex - FTS Rebuild - PASS (verified)"
                 Output "FTS rebuild successful and verified clean."
               else
@@ -2809,9 +3198,16 @@ do
         [ $CheckedDB -eq 0 ] && Output "  Databases are not checked,  Status unknown."
         [ $CheckedDB -eq 1 ] && [ $Damaged -eq 0 ] && Output "  Databases are OK."
         [ $CheckedDB -eq 1 ] && [ $Damaged -eq 1 ] && Output "  Databases were checked and are damaged."
-        [ $CheckedFTS -eq 0 ] && Output "  FTS indexes are not checked,  Status unknown."
-        [ $CheckedFTS -eq 1 ] && [ $FTSDamaged -eq 0 ] && Output "  FTS indexes are OK."
-        [ $CheckedFTS -eq 1 ] && [ $FTSDamaged -eq 1 ] && Output "  FTS indexes are damaged."
+        # Either an FTS check or a database check tells us the FTS state
+        if [ $CheckedFTS -eq 0 ] && [ $CheckedDB -eq 0 ]; then
+          Output "  FTS indexes are not checked,  Status unknown."
+        elif [ $FTSDamaged -eq 0 ]; then
+          Output "  FTS indexes are OK."
+        else
+          Output "  FTS indexes need rebuilding."
+        fi
+
+        Output "  Plex SQLite version: $SQLiteVersion"
         Output ""
         ;;
 
@@ -2921,6 +3317,20 @@ do
           printf "%36s %-15d\n" $Table $Records
         done
       ;;
+
+      # Verify / recreate the FTS maintenance triggers  (hidden command)
+      31|trig*)
+
+        # Check if PMS running
+        if IsRunning; then
+          WriteLog "Trigger - FAIL - PMS runnning"
+          Output   "Unable to verify FTS triggers.  PMS is running. Please stop PlexMediaServer."
+          continue
+        fi
+
+        WriteLog "Trigger - START"
+        DoTriggers "Trigger"
+        ;;
 
       # Ignore/Honor errors
       42|igno*|hono*)

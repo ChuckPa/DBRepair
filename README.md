@@ -9,45 +9,51 @@
 [![Sponsor ChuckPa](https://img.shields.io/badge/Sponsor-%E2%9D%A4-ea4aaa.svg?style=flat&logo=github)](https://github.com/sponsors/ChuckPa)
 
 
-# SPECIAL ANNOUNCEMENT:
+# PMS 1.43+ support (v1.18.00)
 
-## Due to changes in PMS beginning with PMS 1.43.0,  
+## DBRepair.sh v1.18.00 requires PMS 1.43.0 or later.
 
-DBRepair.sh,  as currently written, is incompatible with PMS 1.43.0 and above.  It manifests as FTS "Malformed inverted index" errors
-Because of this,  major changes are coming. 
+PMS 1.43.x bundles 'Plex SQLite' 3.53.3.  PMS 1.42.x and earlier bundled 3.39.4.
+**If you are still on PMS 1.42.x or earlier, stay on DBRepair v1.17.01.**
+DBRepair reads the 'Plex SQLite' version at startup and will not run on anything older than 3.44.0.
 
-1.   DBRepair.sh --  As it exists in the main repo,  has been patched to disable FTS repair.
-2.   Existing 1.17.x packages have been taken down for everyone's safety
+### What changed and why
 
-You may safely use it for normal optimization but it not address any FTS issues. 
+Beginning with SQLite 3.44, `PRAGMA integrity_check` also validates the content of FTS3/FTS4 virtual
+tables and reports lines such as:
 
+```
+malformed inverted index for FTS4 table main.fts4_metadata_titles_icu
+```
 
-#### DBRepair.sh - NEEDS PATCHING. 
-- Falsely reports "Malformed inverted index" and marks the DB as damaged.
-This is the incompatibility showing itself.  This will be worked around. 
+The *same* database file reports `ok` under SQLite 3.39.4.  Nothing new is broken - the newer SQLite
+simply looks where the older one did not.  This is FTS (Full-Text Search) index drift, **not** a damaged
+database, and a Repair (dump/reload) cannot correct it because the dump copies the FTS shadow tables
+verbatim.
 
-- Changes in Plex's SQLite version require major changes to address the incompatibilities being seen between 1.42.2 & 1.43.x
-- Schema changes in PMS require DBRepair perform its tasks differently.
+DBRepair v1.18.00:
 
-- I have temporarily patched the main DBRepair.sh to disable FTS (Text Search) repairs and removed the posted packages for everyone's safety.
+1. Classifies every `integrity_check` line.  Only non-FTS findings mark a database as damaged;
+   FTS findings are reported separately as "FTS indexes need rebuilding".
+2. Automatic now runs as Check, Rebuild FTS, Repair/Optimize, Reindex - the FTS indexes are rebuilt
+   before Repair (a dump/reload copies the FTS shadow tables verbatim) and verified once more at the
+   end.  The single structural check also validates the FTS content, so Automatic no longer pays for
+   two full integrity passes.  FTS rebuilding is enabled again (the temporary patch is gone).
+3. Verifies the 8 triggers PMS 1.43 uses to maintain its ICU FTS4 tables and recreates any which are
+   missing - otherwise the indexes silently drift again after being rebuilt.  Also available as the
+   hidden command `31 - 'triggers'`.
 
-  
-### Upcoming:
+### Override
 
-1.   All versions of PMS below 1.43.0  (including PMS 1.42.2 - Aug 2025) will no longer be supported due to SQL incompatibilities.     I cannot support two different database schemas.
+```
+DBREPAIR_ALLOW_OLD_SQLITE=1 ./DBRepair.sh
+```
 
-2.  DBRepair.sh (Script)
--- Update to  enforce the PMS 1.43+ requirement
--- Update to utilize new PMS SQLite version
---  Update to use new FTS, Triggers, and Indexes commands and sequencing. 
+Runs the tool against a pre-3.44 'Plex SQLite' anyway.  Use of the override is logged.  Not recommended.
 
+### DBRepair (Program)
 
-3. Patch technique 
---  For those Linux users  wanting to self-patch DBRepair.sh,   I will post the instructions soon in the forum.
-    
-
-4.   DBRepair (Program)
--- Development testing will resume once the radioactive fallout :collision: has been cleared.
+No change.  See the maintainer's notes in the forum thread for its status.
 
 
 
@@ -77,8 +83,8 @@ If sufficient privleges exist (root), and supported by the environment, the opti
 
  The following commands (or their number), listed in alphabetical order,  are accepted as input.
 ```
-   AUTO(matic)  - Automatically check, repair/optimize, reindex, and FTS rebuild in one step.
-   CHEC(k)      - Check the main and blob databases integrity (includes FTS index check)
+   AUTO(matic)  - Automatically check, rebuild FTS, repair/optimize, and reindex in one step.
+   CHEC(k)      - Check the main and blob databases integrity (reports structure and FTS separately)
    DEFL(ate)    - Deflate a bloated PMS database (faulty statistics data)
    EXIT         - Exit the utility
    IGNOre/HONOr - Ignore/Honor constraint errors when IMPORTing additional data into DB.
@@ -88,6 +94,7 @@ If sufficient privleges exist (root), and supported by the environment, the opti
    REIN(dex)    - Rebuild the database indexes (includes FTS indexes)
    REPL(ace)    - Replace the existing databases with a PMS-generated backup
    SHOW         - Show the log file
+   TRIG(gers)   - Verify (and recreate if missing) the 8 PMS 1.43 FTS maintenance triggers  (31)
    STAR(t)      - Start PMS (not available on all platforms)
    STOP         - Stop PMS  (not available on all platforms)
    UNDO         - UNDO the last operation
@@ -106,7 +113,7 @@ If sufficient privleges exist (root), and supported by the environment, the opti
   Select
 
   1 - 'stop'      - Stop PMS.
-  2 - 'automatic' - Check, Repair/Optimize, Reindex, and FTS rebuild in one step.
+  2 - 'automatic' - Check, Rebuild FTS, Repair/Optimize, Reindex.
   3 - 'check'     - Perform integrity check of database and FTS indexes.
   4 - 'vacuum'    - Remove empty space from database without optimizing.
   5 - 'repair'    - Repair/Optimize databases.
@@ -122,6 +129,7 @@ If sufficient privleges exist (root), and supported by the environment, the opti
  21 - 'prune'     - Prune (remove) old image files (jpeg,jpg,png) from PhotoTranscoder cache.
  22 - 'purge'     - Purge (delete) all temporary files left behind by PMS & the transcoder.
  23 - 'deflate'   - Deflate a bloated PMS main database.
+ 31 - 'triggers'  - Verify (and recreate if missing) the FTS maintenance triggers.
  42 - 'ignore'    - Ignore duplicate/constraint errors.
 
  88 - 'update'    - Check for updates.

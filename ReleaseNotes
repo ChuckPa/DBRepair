@@ -10,6 +10,72 @@
 
 
 # Release Info:
+v1.18.00
+
+  1. PMS 1.43.0 required  - This release requires PMS 1.43.0 or later ('Plex SQLite' 3.44.0 or later).
+                            DBRepair now reads the 'Plex SQLite' version at startup, records it in the
+                            logfile, and refuses to run on older versions.
+                            PMS 1.42.x and earlier must continue to use DBRepair v1.17.01.
+
+                            The check may be overridden by setting  DBREPAIR_ALLOW_OLD_SQLITE=1
+                            in the environment.  Use of the override is logged.  Not recommended.
+
+  2. "Malformed inverted  - PMS 1.43.x bundles SQLite 3.53.3.  PMS 1.42.x and earlier bundled 3.39.4.
+     index" explained        Beginning with SQLite 3.44,  'PRAGMA integrity_check' also validates the
+                            content of FTS3/FTS4 virtual tables and reports findings such as:
+
+                              malformed inverted index for FTS4 table main.fts4_metadata_titles_icu
+                              unable to validate the inverted index for FTS4 table main....
+
+                            The very same database file reports 'ok' under SQLite 3.39.4.
+                            Nothing new is broken;  the newer SQLite simply looks where the old one
+                            did not.  This is FTS index drift,  not a damaged database.
+
+                            DBRepair v1.17.01 saw those lines, declared the whole database damaged,
+                            and then could not fix it:  Repair (dump/reload) copies the FTS shadow
+                            tables verbatim,  so the drift survives the repair.
+
+  3. CheckDB               - 'PRAGMA integrity_check(20)' is now used (was '(1)') and every line
+                            returned is classified:
+
+                              - lines mentioning 'inverted index'  =  FTS index drift
+                              - all other non-'ok' lines           =  structural damage
+
+                            Only structural damage marks a database as damaged.  FTS drift is
+                            reported separately, logged with the table name(s), and rebuilt.
+
+  4. Automatic sequence    - Reordered so the FTS indexes are rebuilt before Repair:
+                            Check -> Rebuild FTS (if needed) -> Repair/Optimize -> Reindex ->
+                            Check FTS (rebuild once more if the repair reintroduced drift).
+
+                            The structural check also validates the FTS content (SQLite 3.44+),
+                            so it doubles as the FTS check and Automatic performs one full
+                            integrity pass instead of two.
+
+                            Automatic therefore now ends with verified-clean FTS indexes.
+
+  5. FTS rebuild           - The temporary patch which disabled FTS rebuilding for PMS 1.43.x has
+     re-enabled              been removed.  'INSERT INTO <table>(<table>) VALUES('rebuild')' followed by
+                            ('integrity-check') is correct and safe on the 1.43 tables under SQLite 3.53.3.
+
+                          - The FTS state is now tracked per database.  When only one of the two
+                            databases has drifted,  only that database is backed up and rebuilt.
+                            A 2+ GB blobs database is no longer copied to fix the main database.
+
+  6. TRIGgers (new)        - PMS 1.43 maintains its ICU FTS4 tables with 8 triggers on 'metadata_items'
+                            and 'tags' (in both the main and blobs databases).  If any are missing the
+                            FTS indexes silently drift out of date again after being rebuilt.
+
+                            DBRepair now verifies all 8 triggers are present after every FTS rebuild
+                            and recreates any which are missing.  It is also available as the hidden
+                            command  31 - 'triggers'  for manual use.  PMS must be stopped.
+
+  7. Reporting             - 'check'  (option 3) now reports database structure and FTS index state
+                            separately and plainly.
+                          - 'status' (option 11) now reports the 'Plex SQLite' version and the FTS state.
+                          - 'repair' (option 5) warns when the repaired database still needs an FTS
+                            rebuild and points at Automatic / Reindex.
+
 v1.17.01
 
   1. CheckFTS/RebuildFTS  - FTSRebuild did not perform a proper CheckFTS after repairing the FTS

@@ -3,7 +3,7 @@
 #                                                                       #
 #########################################################################
 
-$DBRepairVersion = 'v1.01.02'
+$DBRepairVersion = 'v1.02.00'
 
 class DBRepair {
     [DBRepairOptions] $Options
@@ -388,6 +388,13 @@ class DBRepair {
         $this.WriteOutputLog("Reindexing Blobs DB")
         if (!$this.RunSQLCommand("""$BlobsDBImport"" ""REINDEX;""", "Failed to reindex Blobs DB")) { return $false }
         $this.WriteOutputLog("Reindexing complete.")
+
+        # Rebuild the FTS indexes.  The dump/reload copies the FTS shadow tables verbatim, so this
+        # must be done on the newly built databases before they are made active.
+        $this.WriteOutputLog("Rebuilding FTS indexes")
+        if (!$this.RebuildFTS($MainDBImport, "Main")) { return $false }
+        if (!$this.RebuildFTS($BlobsDBImport, "Blobs")) { return $false }
+        $this.WriteOutputLog("FTS index rebuild complete.")
 
         $this.WriteOutputLog("Moving current DBs to DBTMP and making new databases active")
         if (!$this.CheckPMS("new database copy")) { return $false }
@@ -792,17 +799,64 @@ class DBRepair {
     [bool] IntegrityCheck([string] $Database, [string] $DbName) {
         $this.Options.CanIgnore = $false
         $VerifyResult = ""
-        $result = $this.GetSQLCommandResult("""$Database"" ""PRAGMA integrity_check(1)""", "Failed to verify $dbName DB", [ref]$VerifyResult)
+        $result = $this.GetSQLCommandResult("""$Database"" ""PRAGMA integrity_check(20)""", "Failed to verify $dbName DB", [ref]$VerifyResult)
         if ($result) {
-            $this.Output("$DbName DB verification check is: $VerifyResult")
-            if ($VerifyResult -ne "ok") {
-                $this.ExitDBMaintenance("$DbName DB verification failed: $VerifyResult", $false)
-                $result = $false
+            $Lines = @($VerifyResult) | Where-Object { $_ -and "$_".Trim() -ne "" }
+            $Findings = @($Lines | Where-Object { "$_".Trim() -ne "ok" })
+            $this.Output("$DbName DB verification check is: $($Lines -join '; ')")
+
+            if ($Findings.Count -gt 0) {
+                # Since SQLite 3.44 (PMS 1.43+), integrity_check also validates the content of FTS3/FTS4
+                # virtual tables.  Those findings ('...inverted index...') are FTS index drift, not
+                # database corruption, and are corrected by RebuildFTS - not by the dump/reload.
+                $NonFTS = @($Findings | Where-Object { "$_" -notmatch 'inverted index' })
+                if ($NonFTS.Count -eq 0) {
+                    $this.OutputWarn("$DbName DB FTS indexes need rebuilding (this is not database corruption): $($Findings -join '; ')")
+                    $this.WriteLog("Repair  - Verify $DbName database - FTS rebuild needed: $($Findings -join '; ')")
+                } else {
+                    $this.ExitDBMaintenance("$DbName DB verification failed: $($NonFTS -join '; ')", $false)
+                    $result = $false
+                }
             }
         }
 
         $this.Options.CanIgnore = $true
         return $result
+    }
+
+    # Rebuild the FTS4 indexes of the given database.
+    # A dump/reload copies the FTS shadow tables verbatim, so any drift survives the repair and must
+    # be rebuilt explicitly.  Only a failing 'integrity-check' after the rebuild fails the run.
+    [bool] RebuildFTS([string] $Database, [string] $DbName) {
+        $TableResult = ""
+        $TableQuery = "SELECT name FROM sqlite_master WHERE type='table' AND sql LIKE 'CREATE VIRTUAL TABLE%fts4%'"
+        if (!$this.GetSQLCommandResult("""$Database"" ""$TableQuery""", "Failed to list FTS tables in $DbName DB", [ref]$TableResult)) {
+            return $false
+        }
+
+        $Tables = @($TableResult) | Where-Object { $_ -and "$_".Trim() -ne "" }
+        if ($Tables.Count -eq 0) {
+            $this.WriteOutputLog("No FTS4 tables found in $DbName DB.")
+            return $true
+        }
+
+        foreach ($Table in $Tables) {
+            $Table = "$Table".Trim()
+            $this.WriteOutputLog("Rebuilding FTS index '$Table' in $DbName DB")
+            if (!$this.RunSQLCommand("""$Database"" ""INSERT INTO $Table($Table) VALUES('rebuild');""", "Failed to rebuild FTS index '$Table' in $DbName DB")) {
+                return $false
+            }
+
+            $this.Options.CanIgnore = $false
+            $CheckResult = ""
+            $Verified = $this.GetSQLCommandResult("""$Database"" ""INSERT INTO $Table($Table) VALUES('integrity-check');""", "FTS index '$Table' in $DbName DB is still damaged after rebuilding", [ref]$CheckResult)
+            $this.Options.CanIgnore = $true
+
+            if (!$Verified) { return $false }
+        }
+
+        $this.WriteLog("Repair  - Rebuild FTS indexes ($DbName) - PASS")
+        return $true
     }
 
     # Clear out the temp database directory. If $Confirm is $true, asks the user before doing so.
