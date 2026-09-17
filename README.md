@@ -11,15 +11,27 @@
 
 # SPECIAL ANNOUNCEMENT:
 
-## Due to changes in PMS beginning with PMS 1.43.0,  
+## Due to changes in PMS beginning with PMS 1.43.0,   
+DBRepair.sh,  as currently written, is being phased out in favor of the program (compiled "C" version) I'm writing
 
-DBRepair.sh,  as currently written, is incompatible with PMS 1.43.0 and above.  It manifests as FTS "Malformed inverted index" errors
-Because of this,  major changes are coming. 
-
-1.   DBRepair.sh --  As it exists in the main repo,  has been patched to disable FTS repair.
+1.   DBRepair.sh --  As it exists in the main repo,  has been patched to disable FTS repair.   This is the safest to do as of 1.43.4  PMS now handles FTS entirely itself. 
 2.   Existing 1.17.x packages have been taken down for everyone's safety
 
 You may safely use it for normal optimization but it not address any FTS issues. 
+
+
+#### DBRepair (program) 
+
+DBRepair (program) is stable and works for all but a few edge cases which I'm addressing now.   These edge cases are how DBRepair determines its host & identity.
+
+Please come to the  Plex Forum DBRepair Development thread to get the new program packages (ZIP file) 
+
+This is the current package post:    https://forums.plex.tv/t/dbrepair-development/822684/1151
+
+I will be updating it shortly
+
+
+=============================================================================================================
 
 
 #### DBRepair.sh - NEEDS PATCHING. 
