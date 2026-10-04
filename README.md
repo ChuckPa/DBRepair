@@ -9,6 +9,15 @@
 [![Sponsor ChuckPa](https://img.shields.io/badge/Sponsor-%E2%9D%A4-ea4aaa.svg?style=flat&logo=github)](https://github.com/sponsors/ChuckPa)
 
 
+# DBRepair is now Beta testing.
+
+DBRepair final testing is underway.    Upon completion of beta,  DBRepair will be back (here) on Github where it belongs. 
+
+Please coms join the final testing.
+
+https://forums.plex.tv/t/dbrepair-development/822684/1335
+
+
 # SPECIAL ANNOUNCEMENT:
 
 ## Due to changes in PMS beginning with PMS 1.43.0,   
