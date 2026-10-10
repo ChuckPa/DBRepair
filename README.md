@@ -15,8 +15,7 @@ DBRepair final testing is underway.    Upon completion of beta,  DBRepair will b
 
 Please coms join the final testing.
 
-https://forums.plex.tv/t/dbrepair-development/822684/1335
-
+https://forums.plex.tv/t/dbrepair-development/822684/1377
 
 # SPECIAL ANNOUNCEMENT:
 
