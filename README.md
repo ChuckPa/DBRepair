@@ -9,6 +9,18 @@
 [![Sponsor ChuckPa](https://img.shields.io/badge/Sponsor-%E2%9D%A4-ea4aaa.svg?style=flat&logo=github)](https://github.com/sponsors/ChuckPa)
 
 
+# 14-Oct-2026
+
+DBRepair is now in "Release Candidate" (pre-release) final testing.   Expecting to launch on schedule.
+
+Please stop by and help us give it a final spin.    I have added more to it as well in this release.
+
+https://forums.plex.tv/t/dbrepair-development/822684/1392
+
+Thanks for your continued support.
+Chuck
+
+
 # DBRepair is now Beta testing.
 
 DBRepair final testing is underway.    Upon completion of beta,  DBRepair will be back (here) on Github where it belongs. 
