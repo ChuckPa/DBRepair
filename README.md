@@ -1,4 +1,4 @@
-# DBRepair (for Plex Media Server)
+.# DBRepair (for Plex Media Server)
 
 [![GitHub issues](https://img.shields.io/github/issues/ChuckPa/DBRepair.svg?style=flat)](https://github.com/ChuckPa/DBRepair/issues)
 [![Release](https://img.shields.io/github/release/ChuckPa/DBRepair.svg?style=flat)](https://github.com/ChuckPa/DBRepair/releases/latest)
@@ -18,6 +18,7 @@ Please stop by and help us give it a final spin.    I have added more to it as w
 https://forums.plex.tv/t/dbrepair-development/822684/1392
 
 Thanks for your continued support.
+
 Chuck
 
 
