@@ -1,0 +1,38 @@
+DBRepair Release Notes
+
+v26.10.00
+
+  * Initial Public Release
+    - Version 26.10.00 is the DBRepair initial public release.
+    - Completely rewritten from scratch using "C" programming language.
+    - No external dependencies (Plex SQLite not required).
+    - While having been thoroughly tested throughout its development, I
+      do expect the typical "small stuff".
+    - If you do find something amiss,  please file an issue and I'll
+      resolve it ASAP.
+
+  * Databases
+    - DBRepair now contains database knowledge for versions 1.18.2 and above.
+      (255 PMS builds)
+
+  * Database Repairs & Cleanup
+    - DBRepair is now intelligent, and a lot faster, than the old DBRepair script
+      ever could be.
+    - It can do things the old DBRepair never could.
+    - New commands, better analysis and repairs,
+      DBRepair is "all grown up"  (ha ha)
+
+  * Full Wiki
+    - DBRepair now has a full Wiki (https://github.com/ChuckPa/DBRepair/wiki)
+      Everything is documented in it.
+      Please pointout any typos or errors.
+
+  * Thanks
+    - Special thanks go to @ukdtom for keeping me
+      on the right path throughout these past six months.
+
+
+
+### Questions ??
+
+Please don't hesitate to ask.
