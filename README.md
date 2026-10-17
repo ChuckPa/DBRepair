@@ -80,3 +80,5 @@ and download the appropriate `.zip` file for your platform from the
 prefer to download only the executable without the bundled documentation).*
 
 [Where to install DBRepair](https://github.com/ChuckPa/DBRepair/wiki/Install)
+
+**DBRepair is free but one-time Donations or Sponsorships to defray development costs are always welcomed** 
