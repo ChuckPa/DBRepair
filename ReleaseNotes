@@ -8,8 +8,13 @@
 ![Maintenance](https://img.shields.io/badge/Maintained-Yes-green.svg)
 
 
-
 # Release Info:
+v1.17.02
+
+  1. Upgrade              - DBRepair.sh ver 1.17.02 is the transitional upgrade version to fetch the
+                            binary zip file for you. 
+                            Once downloaded,  unzip normally and use the DBRepair executable. 
+
 v1.17.01
 
   1. CheckFTS/RebuildFTS  - FTSRebuild did not perform a proper CheckFTS after repairing the FTS
