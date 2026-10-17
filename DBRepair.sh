@@ -3,12 +3,12 @@
 # Database Repair Utility for Plex Media Server.                        #
 # Copyright:  2022-2026: ChuckPa                                        #
 #             All Rights Reserved.                                      #
-# Version:    v1.17.01                                                  #
+# Version:    v1.17.02                                                  #
 # Date:       06-Aug-2026                                               #
 #########################################################################
 
 # Version for display purposes
-Version="v1.17.01"
+Version="v1.17.02"
 
 # Have the databases passed integrity checks
 CheckedDB=0
@@ -467,133 +467,136 @@ GetOverride() {
     echo "$Retval"
 }
 
-# Determine which host we are running on and set variables
-HostConfig() {
+# Transitional downloader: HostConfig is disabled (no database work)
+# # Determine which host we are running on and set variables
+# HostConfig() {
+#
+#   # On all hosts except Mac/FreeBSD
+#   PIDOF="pidof"
+#   STATFMT="-c"
+#   STATBYTES="%s"
+#   STATPERMS="%a"
+#
+#   # On all hosts except QNAP
+#   DFFLAGS="-m"
+#
+#   # Manual Config
+#   if [ $ManualConfig -eq 1 ]; then
+#
+#     CACHEDIR="$DBDIR/../../Cache/PhotoTranscoder"
+#     LOGFILE="$DBDIR/DBRepair.log"
+#     HostType="MANUAL"
+#     return 0
+#   fi
+#
+#   # Synology (DSM 7)
+#   if [ -d /var/packages/PlexMediaServer ] && \
+#      [ -d "/var/packages/PlexMediaServer/shares/PlexMediaServer/AppData/Plex Media Server" ]; then
+#
+#     # Who are we
+#     DefaultUser="PlexMediaServer"
+#     DefaultGroup="PlexMediaServer"
+#     Owner="${DefaultUser}:${DefaultGroup}"
+#
+#     # Where is the software
+#     PKGDIR="/var/packages/PlexMediaServer/target"
+#     PLEX_SQLITE="$PKGDIR/Plex SQLite"
+#     LOG_TOOL="logger"
+#
+#     # Where is the data
+#     AppSuppDir="/var/packages/PlexMediaServer/shares/PlexMediaServer/AppData"
+#     DBDIR="$AppSuppDir/Plex Media Server/Plug-in Support/Databases"
+#     CACHEDIR="$AppSuppDir/Plex Media Server/Cache/PhotoTranscoder"
+#     PID_FILE="$AppSuppDir/Plex Media Server/plexmediaserver.pid"
+#     LOGFILE="$DBDIR/DBRepair.log"
+#     TMPDIR="$AppSuppDir/Plex Media Server/tmp"
+#     SYSTMP="$TMPDIR"
+#
+#     # We are done
+#     HostType="Synology (DSM 7)"
+#
+#     # We do have start/stop as root
+#     HaveStartStop=1
+#     StartCommand="/usr/syno/bin/synopkg start PlexMediaServer"
+#     StopCommand="/usr/syno/bin/synopkg stop PlexMediaServer"
+#     return 0
 
-  # On all hosts except Mac/FreeBSD
-  PIDOF="pidof"
-  STATFMT="-c"
-  STATBYTES="%s"
-  STATPERMS="%a"
+#   # Synology (DSM 6)
+#   elif [ -d "/var/packages/Plex Media Server" ] && \
+#        [ -f "/usr/syno/sbin/synoshare" ]; then
+#
+#     # Who are we
+#     DefaultUser="Plex"
+#     DefaultGroup="users"
+#     Owner="${DefaultUser}:${DefaultGroup}"
+#
+#     # Where is the software
+#     PKGDIR="/var/packages/Plex Media Server/target"
+#     PLEX_SQLITE="$PKGDIR/Plex SQLite"
+#     LOG_TOOL="logger"
+#
+#     # Get shared folder path
+#     AppSuppDir="$(synoshare --get Plex | grep Path | awk -F\[ '{print $2}' | awk -F\] '{print $1}')"
+#
+#     # Where is the data
+#     AppSuppDir="$AppSuppDir/Library/Application Support"
+#     if [ -d "$AppSuppDir/Plex Media Server" ]; then
+#
+#       DBDIR="$AppSuppDir/Plex Media Server/Plug-in Support/Databases"
+#       CACHEDIR="$AppSuppDir/Plex Media Server/Cache/PhotoTranscoder"
+#       PID_FILE="$AppSuppDir/Plex Media Server/plexmediaserver.pid"
+#       LOGFILE="$DBDIR/DBRepair.log"
+#       TMPDIR="$AppSuppDir/Plex Media Server/tmp"
+#       SYSTMP="$TMPDIR"
+#
+#       HostType="Synology (DSM 6)"
+#
+#       # We do have start/stop as root
+#       HaveStartStop=1
+#       SynoStart="'/var/packages/Plex Media Server/scripts/start-stop-status' start"
+#       SynoStop="'/var/packages/Plex Media Server/scripts/start-stop-status' stop"
+#
+#       # We do have start/stop as root
+#       HaveStartStop=1
+#       StartCommand="eval $SynoStart"
+#       StopCommand="eval $SynoStop"
+#
+#       return 0
+#     fi
+#
+#
+#   # QNAP (QTS & QuTS)
+#   elif [ -f /etc/config/qpkg.conf ]; then
+#
+#     # Where is the software
+#     PKGDIR="$(getcfg -f /etc/config/qpkg.conf PlexMediaServer Install_path)"
+#     PLEX_SQLITE="$PKGDIR/Plex SQLite"
+#     LOG_TOOL="/sbin/log_tool -t 0 -a"
+#
+#     # Where is the data
+#     AppSuppDir="$PKGDIR/Library"
+#     DBDIR="$AppSuppDir/Plex Media Server/Plug-in Support/Databases"
+#     CACHEDIR="$AppSuppDir/Plex Media Server/Cache/PhotoTranscoder"
+#     PID_FILE="$AppSuppDir/Plex Media Server/plexmediaserver.pid"
+#     LOGFILE="$DBDIR/DBRepair.log"
+#     TMPDIR="$AppSuppDir/tmp"
+#     SYSTMP="$TMPDIR"
+#
+#     # Start/Stop
+#     if [ -e /etc/init.d/plex.sh ]; then
+#       HaveStartStop=1
+#       StartCommand="/etc/init.d/plex.sh start"
+#       StopCommand="/etc/init.d/plex.sh stop"
+#     fi
+#
+#     # Use custom DFFLAGS (force POSIX mode)
+#     DFFLAGS="-Pm"
+#
+#     HostType="QNAP"
+#     return 0
 
-  # On all hosts except QNAP
-  DFFLAGS="-m"
-
-  # Manual Config
-  if [ $ManualConfig -eq 1 ]; then
-
-    CACHEDIR="$DBDIR/../../Cache/PhotoTranscoder"
-    LOGFILE="$DBDIR/DBRepair.log"
-    HostType="MANUAL"
-    return 0
-  fi
-
-  # Synology (DSM 7)
-  if [ -d /var/packages/PlexMediaServer ] && \
-     [ -d "/var/packages/PlexMediaServer/shares/PlexMediaServer/AppData/Plex Media Server" ]; then
-
-    # Who are we
-    DefaultUser="PlexMediaServer"
-    DefaultGroup="PlexMediaServer"
-    Owner="${DefaultUser}:${DefaultGroup}"
-
-    # Where is the software
-    PKGDIR="/var/packages/PlexMediaServer/target"
-    PLEX_SQLITE="$PKGDIR/Plex SQLite"
-    LOG_TOOL="logger"
-
-    # Where is the data
-    AppSuppDir="/var/packages/PlexMediaServer/shares/PlexMediaServer/AppData"
-    DBDIR="$AppSuppDir/Plex Media Server/Plug-in Support/Databases"
-    CACHEDIR="$AppSuppDir/Plex Media Server/Cache/PhotoTranscoder"
-    PID_FILE="$AppSuppDir/Plex Media Server/plexmediaserver.pid"
-    LOGFILE="$DBDIR/DBRepair.log"
-    TMPDIR="$AppSuppDir/Plex Media Server/tmp"
-    SYSTMP="$TMPDIR"
-
-    # We are done
-    HostType="Synology (DSM 7)"
-
-    # We do have start/stop as root
-    HaveStartStop=1
-    StartCommand="/usr/syno/bin/synopkg start PlexMediaServer"
-    StopCommand="/usr/syno/bin/synopkg stop PlexMediaServer"
-    return 0
-
-  # Synology (DSM 6)
-  elif [ -d "/var/packages/Plex Media Server" ] && \
-       [ -f "/usr/syno/sbin/synoshare" ]; then
-
-    # Who are we
-    DefaultUser="Plex"
-    DefaultGroup="users"
-    Owner="${DefaultUser}:${DefaultGroup}"
-
-    # Where is the software
-    PKGDIR="/var/packages/Plex Media Server/target"
-    PLEX_SQLITE="$PKGDIR/Plex SQLite"
-    LOG_TOOL="logger"
-
-    # Get shared folder path
-    AppSuppDir="$(synoshare --get Plex | grep Path | awk -F\[ '{print $2}' | awk -F\] '{print $1}')"
-
-    # Where is the data
-    AppSuppDir="$AppSuppDir/Library/Application Support"
-    if [ -d "$AppSuppDir/Plex Media Server" ]; then
-
-      DBDIR="$AppSuppDir/Plex Media Server/Plug-in Support/Databases"
-      CACHEDIR="$AppSuppDir/Plex Media Server/Cache/PhotoTranscoder"
-      PID_FILE="$AppSuppDir/Plex Media Server/plexmediaserver.pid"
-      LOGFILE="$DBDIR/DBRepair.log"
-      TMPDIR="$AppSuppDir/Plex Media Server/tmp"
-      SYSTMP="$TMPDIR"
-
-      HostType="Synology (DSM 6)"
-
-      # We do have start/stop as root
-      HaveStartStop=1
-      SynoStart="'/var/packages/Plex Media Server/scripts/start-stop-status' start"
-      SynoStop="'/var/packages/Plex Media Server/scripts/start-stop-status' stop"
-
-      # We do have start/stop as root
-      HaveStartStop=1
-      StartCommand="eval $SynoStart"
-      StopCommand="eval $SynoStop"
-
-      return 0
-    fi
-
-
-  # QNAP (QTS & QuTS)
-  elif [ -f /etc/config/qpkg.conf ]; then
-
-    # Where is the software
-    PKGDIR="$(getcfg -f /etc/config/qpkg.conf PlexMediaServer Install_path)"
-    PLEX_SQLITE="$PKGDIR/Plex SQLite"
-    LOG_TOOL="/sbin/log_tool -t 0 -a"
-
-    # Where is the data
-    AppSuppDir="$PKGDIR/Library"
-    DBDIR="$AppSuppDir/Plex Media Server/Plug-in Support/Databases"
-    CACHEDIR="$AppSuppDir/Plex Media Server/Cache/PhotoTranscoder"
-    PID_FILE="$AppSuppDir/Plex Media Server/plexmediaserver.pid"
-    LOGFILE="$DBDIR/DBRepair.log"
-    TMPDIR="$AppSuppDir/tmp"
-    SYSTMP="$TMPDIR"
-
-    # Start/Stop
-    if [ -e /etc/init.d/plex.sh ]; then
-      HaveStartStop=1
-      StartCommand="/etc/init.d/plex.sh start"
-      StopCommand="/etc/init.d/plex.sh stop"
-    fi
-
-    # Use custom DFFLAGS (force POSIX mode)
-    DFFLAGS="-Pm"
-
-    HostType="QNAP"
-    return 0
-
+# Rest of HostConfig is block-commented
+: <<'COMMENTED_OUT'
   # SNAP host (check before standard)
   elif [ -d "/var/snap/plexmediaserver/common/Library/Application Support/Plex Media Server" ]; then
 
@@ -965,6 +968,7 @@ HostConfig() {
   # Unknown / currently unsupported host
   return 1
 }
+COMMENTED_OUT
 
 # Simple function to set variables
 SetLast() {
@@ -1057,7 +1061,7 @@ DoFTSRebuild() {
 
     # EMERGENCY PATCH
     Output "Temporary Patch:  FTS Rebuilding disabled as of PMS 1.43.x and Plex discussions until resolved."
-    return 0 
+    return 0
 
     # Clear flags
     Damaged=0
@@ -2346,29 +2350,54 @@ fi
 Scripted=0
 [ "$1" != "" ] && Scripted=1
 
-# Identify this host
-if [ $ManualConfig -eq 0 ] && ! HostConfig; then
-  Output 'Error: Unknown host. Current supported hosts are: QNAP, Syno, Netgear, Mac, ASUSTOR, WD (OS5), Linux wkstn/svr, SNAP, FreeBSD 14+'
-  Output '                     Current supported container images:  Plexinc, LinuxServer, HotIO, & BINHEX'
-  Output '                     Manual host configuration is available in most use cases.'
-  Output ' '
-  Output 'Are you trying to run the tool from outside the container environment?  Manual mode is available. Please see documentation.'
-  exit 1
+# Identify this host (disabled: transitional downloader does no database work)
+# if [ $ManualConfig -eq 0 ] && ! HostConfig; then
+#   Output 'Error: Unknown host. Current supported hosts are: QNAP, Syno, Netgear, Mac, ASUSTOR, WD (OS5), Linux wkstn/svr, SNAP, FreeBSD 14+'
+#   Output '                     Current supported container images:  Plexinc, LinuxServer, HotIO, & BINHEX'
+#   Output '                     Manual host configuration is available in most use cases.'
+#   Output ' '
+#   Output 'Are you trying to run the tool from outside the container environment?  Manual mode is available. Please see documentation.'
+#   exit 1
+# fi
+
+# If root required, confirm this script is running as root (disabled: downloader needs no root)
+# if [ $RootRequired -eq 1 ] && [ $(id -u) -ne 0 ]; then
+#   Output "ERROR:  Tool running as username '$(whoami)'.  '$HostType' requires 'root' user privilege."
+#   Output "        (e.g 'sudo -su root' or 'sudo bash')"
+#   Output "        Exiting."
+#   exit 2
+# fi
+
+# Download to the current directory if writable, else the home directory
+if [ -w "$(pwd)" ]; then
+  DownloadDir="$(pwd)"
+else
+  DownloadDir="$HOME"
 fi
 
-# If root required, confirm this script is running as root
-if [ $RootRequired -eq 1 ] && [ $(id -u) -ne 0 ]; then
-  Output "ERROR:  Tool running as username '$(whoami)'.  '$HostType' requires 'root' user privilege."
-  Output "        (e.g 'sudo -su root' or 'sudo bash')"
-  Output "        Exiting."
-  exit 2
-fi
+# Logfile lives in the download directory
+LOGFILE="$DownloadDir/DBRepair.log"
 
-# We might not be root but minimally make sure we have write access
-if [ ! -w "$DBDIR" ]; then
-  echo ERROR: Cannot write to Databases directory.  Insufficient privilege.
-  exit 2
-fi
+# Host OS as named in the release zips (empty = unsupported)
+case "$(uname -s)" in
+  Linux)  HostOs="Linux" ;;
+  Darwin) HostOs="MacOS" ;;
+  *)      HostOs="" ;;
+esac
+
+# Host CPU as named in the release zips (any armv* is 32-bit ARM; empty = unsupported)
+case "$(uname -m)" in
+  x86_64|amd64)  HostCpu="x86_64" ;;
+  aarch64|arm64) HostCpu="arm64" ;;
+  armv*)         HostCpu="arm32" ;;
+  *)             HostCpu="" ;;
+esac
+
+# We might not be root but minimally make sure we have write access (disabled: no database work)
+# if [ ! -w "$DBDIR" ]; then
+#   echo ERROR: Cannot write to Databases directory.  Insufficient privilege.
+#   exit 2
+# fi
 
 echo " "
 # echo Detected Host:  $HostType
@@ -2378,54 +2407,54 @@ WriteLog "Session start: Host is $HostType"
 # Make sure we have a logfile
 touch "$LOGFILE"
 
-# Basic checks;  PMS installed
-if [ ! -f "$PLEX_SQLITE" ] ; then
-  Output "PMS is not installed.  Cannot continue.  Exiting."
-  WriteLog "PMS not installed."
-  exit 1
-fi
+# Basic checks;  PMS installed (disabled: no database work)
+# if [ ! -f "$PLEX_SQLITE" ] ; then
+#   Output "PMS is not installed.  Cannot continue.  Exiting."
+#   WriteLog "PMS not installed."
+#   exit 1
+# fi
 
-# Set tmp dir so we don't use RAM when in DBDIR
-DBTMP="./dbtmp"
-mkdir -p "$DBDIR/$DBTMP"
+# Set tmp dir so we don't use RAM when in DBDIR (disabled: no database work)
+# DBTMP="./dbtmp"
+# mkdir -p "$DBDIR/$DBTMP"
 
 # Now set as DBTMP
-export TMPDIR="$DBTMP"
-export TMP="$DBTMP"
+# export TMPDIR="$DBTMP"
+# export TMP="$DBTMP"
 
 # If command line args then set flag
 Scripted=0
 [ "$1" != "" ] && Scripted=1
 
-# Can I write to the Databases directory ?
-if [ ! -w "$DBDIR" ]; then
-  Output "ERROR: Cannot write to the Databases directory. Insufficient privilege or wrong UID. Exiting."
-  exit 1
-fi
+# Can I write to the Databases directory ? (disabled: no database work)
+# if [ ! -w "$DBDIR" ]; then
+#   Output "ERROR: Cannot write to the Databases directory. Insufficient privilege or wrong UID. Exiting."
+#   exit 1
+# fi
 
 # Databases exist or Backups exist to restore from
-if [ ! -f "$DBDIR/$CPPL.db" ]       && \
-   [ ! -f "$DBDIR/$CPPL.blobs.db" ] && \
-   [ "$(echo com.plexapp.plugins.*-????-??-??)" = "com.plexapp.plugins.*-????-??-??" ]; then
-
-  Output "Cannot locate databases. Cannot continue.  Exiting."
-  WriteLog "Databases or backups not found."
-  exit 1
-fi
+# if [ ! -f "$DBDIR/$CPPL.db" ]       && \
+#    [ ! -f "$DBDIR/$CPPL.blobs.db" ] && \
+#    [ "$(echo com.plexapp.plugins.*-????-??-??)" = "com.plexapp.plugins.*-????-??-??" ]; then
+#
+#   Output "Cannot locate databases. Cannot continue.  Exiting."
+#   WriteLog "Databases or backups not found."
+#   exit 1
+# fi
 
 # Work in the Databases directory
-cd "$DBDIR"
+# cd "$DBDIR"
 
 # Get the owning UID/GID before we proceed so we can restore
-Owner="$(stat $STATFMT '%u:%g' $CPPL.db)"
-Perms="$(stat $STATFMT $STATPERMS $CPPL.db)"
+# Owner="$(stat $STATFMT '%u:%g' $CPPL.db)"
+# Perms="$(stat $STATFMT $STATPERMS $CPPL.db)"
 
 # Sanity check,  We are either owner of the DB or root
-if [ ! -w $CPPL.db ]; then
-   Output "Do not have write permission to the Databases. Exiting."
-   WriteLog "No write permission to databases+.  Exit."
-   exit 1
-fi
+# if [ ! -w $CPPL.db ]; then
+#    Output "Do not have write permission to the Databases. Exiting."
+#    WriteLog "No write permission to databases+.  Exit."
+#    exit 1
+# fi
 
 # Run entire utility in a loop until all arguments used,  EOF on input, or commanded to exit
 while true
@@ -2433,17 +2462,19 @@ do
 
   echo " "
   echo " "
-  echo "      Database Repair Utility for Plex Media Server  ($HostType)"
+  echo "      Database Repair Utility Transitional Upgrader"
   echo "                       Version $Version"
   echo " "
-
-  # Print info if Manual
-  if [ $ManualConfig -eq 1 ]; then
-    WriteLog "SQLite path:   '$PLEX_SQLITE'"
-    WriteLog "Database path: '$DBDIR'"
-    Output "      PlexSQLite = '$PLEX_SQLITE'"
-    Output "      Databases  = '$DBDIR'"
-  fi
+  echo " "
+  echo " "
+  echo "  This version ($Version) determines your platform and CPU type"
+  echo "  It then downloads the appropriate DBRepair-26.10.00 zip file"
+  echo " "
+  echo "  Once downloaded,  unzip the ZIP,  place it wherever appropriate"
+  echo "  and start it up (with root/admin privileges if needed)"
+  echo " "
+  echo "  See the wiki page for details: https://github.com/ChuckPa/DBRepair/wiki"
+  echo " "
 
   Choice=0; Exit=0; NullCommands=0
 
@@ -2452,34 +2483,35 @@ do
   do
     if [ $ShowMenu -eq 1 ] && [ $Scripted -eq 0 ]; then
 
+      # Transitional downloader: only 'update' is offered
       echo ""
       echo "Select"
       echo ""
-      [ $HaveStartStop -gt 0 ] && echo "  1 - 'stop'      - Stop PMS."
-      [ $HaveStartStop -eq 0 ] && echo "  1 - 'stop'      - (Not available. Stop manually.)"
-      echo "  2 - 'automatic' - Check, Repair/Optimize, Reindex, and FTS rebuild in one step."
-      echo "  3 - 'check'     - Perform integrity check of database and FTS indexes."
-      echo "  4 - 'vacuum'    - Remove empty space from database without optimizing."
-      echo "  5 - 'repair'    - Repair/Optimize databases."
-      echo "  6 - 'reindex'   - Rebuild database indexes."
+      # [ $HaveStartStop -gt 0 ] && echo "  1 - 'stop'      - Stop PMS."
+      # [ $HaveStartStop -eq 0 ] && echo "  1 - 'stop'      - (Not available. Stop manually.)"
+      # echo "  2 - 'automatic' - Check, Repair/Optimize, Reindex, and FTS rebuild in one step."
+      # echo "  3 - 'check'     - Perform integrity check of database and FTS indexes."
+      # echo "  4 - 'vacuum'    - Remove empty space from database without optimizing."
+      # echo "  5 - 'repair'    - Repair/Optimize databases."
+      # echo "  6 - 'reindex'   - Rebuild database indexes."
 
-      [ $HaveStartStop -gt 0 ] && echo "  7 - 'start'     - Start PMS"
-      [ $HaveStartStop -eq 0 ] && echo "  7 - 'start'     - (Not available. Start manually)"
-      echo ""
-      echo "  8 - 'import'    - Import watch history from another database independent of Plex. (risky)."
-      echo "  9 - 'replace'   - Replace current databases with newest usable backup copy (interactive)."
-      echo " 10 - 'show'      - Show logfile."
-      echo " 11 - 'status'    - Report status of PMS (run-state and databases)."
-      echo " 12 - 'undo'      - Undo last successful command."
-      echo ""
-      echo " 21 - 'prune'     - Remove old image files from PhotoTranscoder cache & all temp files left by PMS."
-      echo " 23 - 'deflate'   - Deflate a bloated PMS main database."
-      [ $IgnoreErrors -eq 0 ] && echo " 42 - 'ignore'    - Ignore duplicate/constraint errors."
-      [ $IgnoreErrors -eq 1 ] && echo " 42 - 'honor'     - Honor all database errors."
-      echo ""
+      # [ $HaveStartStop -gt 0 ] && echo "  7 - 'start'     - Start PMS"
+      # [ $HaveStartStop -eq 0 ] && echo "  7 - 'start'     - (Not available. Start manually)"
+      # echo ""
+      # echo "  8 - 'import'    - Import watch history from another database independent of Plex. (risky)."
+      # echo "  9 - 'replace'   - Replace current databases with newest usable backup copy (interactive)."
+      # echo " 10 - 'show'      - Show logfile."
+      # echo " 11 - 'status'    - Report status of PMS (run-state and databases)."
+      # echo " 12 - 'undo'      - Undo last successful command."
+      # echo ""
+      # echo " 21 - 'prune'     - Remove old image files from PhotoTranscoder cache & all temp files left by PMS."
+      # echo " 23 - 'deflate'   - Deflate a bloated PMS main database."
+      # [ $IgnoreErrors -eq 0 ] && echo " 42 - 'ignore'    - Ignore duplicate/constraint errors."
+      # [ $IgnoreErrors -eq 1 ] && echo " 42 - 'honor'     - Honor all database errors."
+      # echo ""
       echo " 88 - 'update'    - Check for updates."
-      echo " 98 - 'quit'      - Quit immediately.  Keep all temporary files."
-      echo " 99 - 'exit'      - Exit with cleanup options."
+      # echo " 98 - 'quit'      - Quit immediately.  Keep all temporary files."
+      # echo " 99 - 'exit'      - Exit with cleanup options."
 
     fi
 
@@ -2527,458 +2559,495 @@ do
     case "$Command" in
 
       # Stop PMS (if available this host)
-      1|stop)
-
-        DoStop
-        ;;
-
-
-      # Automatic of all common operations
-      2|auto*)
-
-        # Check if PMS running
-        if IsRunning; then
-          WriteLog "Auto    - FAIL - PMS runnning"
-          Output   "Unable to run automatic sequence.  PMS is running. Please stop PlexMediaServer."
-          continue
-        fi
-
-        # Is there enough room to work
-        if ! FreeSpaceAvailable; then
-          WriteLog "Auto    - FAIL - Insufficient free space on $AppSuppDir"
-          Output   "Error:   Unable to run automatic sequence.  Insufficient free space available on $AppSuppDir"
-          Output   "         Space needed = $SpaceNeeded MB,  Space available = $SpaceAvailable MB"
-          continue
-        fi
-
-        # Start auto
-        Output "Automatic Check,Repair,Index started."
-        WriteLog "Auto    - START"
-
-        # Check the databases (forced)
-        Output ""
-        if CheckDatabases "Check  " force ; then
-          WriteLog "Check   - PASS"
-          CheckedDB=1
-        else
-          WriteLog "Check   - FAIL"
-          CheckedDB=0
-          continue
-        fi
-
-        # Now Repair
-        Output ""
-        if ! DoRepair; then
-
-          WriteLog "Repair  - FAIL"
-          WriteLog "Auto    - FAIL"
-          CheckedDB=0
-
-          Output "Repair failed. Automatic mode cannot continue. Please repair with individual commands"
-          continue
-        else
-          WriteLog "Repair  - PASS"
-          CheckedDB=1
-        fi
-
-        # Now Index
-        DoUpdateTimestamp
-        Output ""
-        if ! DoIndex; then
-          WriteLog "Index   - FAIL"
-          WriteLog "Auto    - FAIL"
-          CheckedDB=0
-
-          Output "Index failed. Automatic mode cannot continue. Please repair with individual commands"
-          continue
-        else
-          WriteLog "Reindex - PASS"
-        fi
-
-        # Now check FTS indexes and repair if damaged
-        DoUpdateTimestamp
-        Output ""
-        if ! CheckFTS "Auto   "; then
-          Output ""
-          Output "FTS indexes are damaged. Attempting automatic FTS rebuild..."
-          WriteLog "Auto    - FTS damaged, attempting rebuild"
-
-          if DoFTSRebuild && CheckFTS "Auto   "; then
-            WriteLog "Auto    - FTS Rebuild - PASS (verified)"
-            Output "FTS rebuild successful and verified clean."
-          else
-            WriteLog "Auto    - FTS Rebuild - FAIL (unverified or still damaged)"
-            Output "FTS rebuild did not produce a verified-clean index. You may need to run 'reindex' command manually."
-            # Don't fail auto entirely - main DB repair succeeded
-          fi
-        else
-          WriteLog "Auto    - FTS Check - PASS"
-        fi
-
-        # All good to here
-        WriteLog "Auto    - COMPLETED"
-        Output   "Automatic Check, Repair/optimize, Index, & FTS check successful."
-        ;;
-
-
-      # Check databases
-      3|chec*)
-
-        # Check if PMS running
-        if IsRunning; then
-          WriteLog "Check   - FAIL - PMS runnning"
-          Output   "Unable to check databases.  PMS is running."
-          continue
-        fi
-
-        # CHECK DBs
-        if CheckDatabases "Check  " force ; then
-          WriteLog "Check   - PASS"
-          CheckedDB=1
-        else
-          WriteLog "Check   - FAIL"
-          CheckedDB=0
-        fi
-
-        # Also check FTS indexes (these can be damaged even when integrity_check passes)
-        Output ""
-        if ! CheckFTS "Check  "; then
-          Output ""
-          Output "NOTE: FTS indexes are damaged but main database structure is OK."
-          Output "      Use 'reindex' (option 6) or 'automatic' (option 2) to rebuild."
-        fi
-        ;;
-
-      # Vacuum
-      4|vacu*)
-
-        # Check if PMS running
-        if IsRunning; then
-          WriteLog "Vacuum - FAIL - PMS runnning"
-          Output   "Unable to vacuum databases.  PMS is running."
-          continue
-        fi
-
-        DoVacuum
-        continue
-        ;;
-
-      # Repair (Same as optimize but assumes damaged so doesn't check)
-      5|repa*)
-
-        # Check if PMS running
-        if IsRunning; then
-          WriteLog "Repair - FAIL - PMS runnning"
-          Output   "Unable to repair databases.  PMS is running."
-          continue
-        fi
-
-        # Is there enough room to work
-        if ! FreeSpaceAvailable; then
-          WriteLog "Import  - FAIL - Insufficient free space on $AppSuppDir"
-          Output   "Error:   Unable to repair database.  Insufficient free space available on $AppSuppDir"
-          continue
-        fi
-
-
-        DoRepair
-        ;;
-
-
-      # Index databases
-      6|rein*|inde*)
-
-        # Check if PMS running
-        if IsRunning; then
-          WriteLog "Index   - FAIL - PMS runnning"
-          Output   "Unable to index databases.  PMS is running."
-          continue
-        fi
-
-        # Is there enough room to work
-        if ! FreeSpaceAvailable; then
-          WriteLog "Index   - FAIL - Insufficient free space on $AppSuppDir"
-          Output   "Error:   Unable to perform processing.  Insufficient free space available on $AppSuppDir"
-          continue
-        fi
-
-        # First check the databases
-        if CheckDatabases Check; then
-          WriteLog "Check   - PASS"
-          CheckedDB=1
-
-          # Now index
-          if DoIndex ; then
-            WriteLog "Reindex - PASS"
-
-            # Check FTS indexes and repair if damaged
-            Output ""
-            if ! CheckFTS "Reindex"; then
-              Output ""
-              Output "FTS indexes are damaged. Rebuilding..."
-              WriteLog "Reindex - FTS damaged, attempting rebuild"
-
-              if DoFTSRebuild && CheckFTS "Reindex"; then
-                WriteLog "Reindex - FTS Rebuild - PASS (verified)"
-                Output "FTS rebuild successful and verified clean."
-              else
-                WriteLog "Reindex - FTS Rebuild - FAIL (unverified or still damaged)"
-                Output "FTS rebuild did not produce a verified-clean index."
-              fi
-            else
-              WriteLog "Reindex - FTS Check - PASS"
-            fi
-          else
-            WriteLog "Reindex - FAIL"
-          fi
-        else
-          WriteLog "Check   - FAIL"
-          CheckedDB=0
-        fi
-        ;;
-
-
-      # Start PMS (if available this host)
-      7|star*)
-
-        DoStart
-        ;;
-
-
-      # Menu on/off control
-      menu*)
-
-        # Choices are ON,OFF,YES,NO
-        Option="$(echo $Input | tr '[A-Z]' '[a-z]' | awk '{print $2}')"
-
-        [ "$Option" = "on"  ] && ShowMenu=1
-        [ "$Option" = "yes" ] && ShowMenu=1
-        [ "$Option" = "off" ] && ShowMenu=0 && echo Menu off: Reenable with \'menu on\' command
-        [ "$Option" = "no"  ] && ShowMenu=0 && echo menu off: Reenable with \'menu on\' command
-        ;;
-
-
-      # Import watch history
-      8|impo*)
-
-        DoImport
-        ;;
-
-
-      # Replace (from PMS backup)
-      9|repl*)
-
-        # Check if PMS running
-        if IsRunning; then
-          WriteLog "Replace - FAIL - PMS runnning"
-          Output   "Unable to replace database from a backup copy.  PMS is running."
-          continue
-        fi
-
-        # Is there enough room to work
-        if ! FreeSpaceAvailable; then
-          WriteLog "Replace - FAIL - Insufficient free space on $AppSuppDir"
-          Output   "Error:   Unable to replace from backups.  Insufficient free space available on $AppSuppDir"
-          continue
-        fi
-
-        DoReplace
-        ;;
-
-
-      # Show loggfile
-      10|show*)
-
-          echo ==================================================================================
-          cat "$LOGFILE"
-          echo ==================================================================================
-          ;;
-
-
-      # Current status of Plex and databases
-      11|stat*)
-
-        Output ""
-        Output "Status report: $(date)"
-        if IsRunning ; then
-          Output "  PMS is running."
-        else
-          Output "  PMS is stopped."
-        fi
-
-        [ $CheckedDB -eq 0 ] && Output "  Databases are not checked,  Status unknown."
-        [ $CheckedDB -eq 1 ] && [ $Damaged -eq 0 ] && Output "  Databases are OK."
-        [ $CheckedDB -eq 1 ] && [ $Damaged -eq 1 ] && Output "  Databases were checked and are damaged."
-        [ $CheckedFTS -eq 0 ] && Output "  FTS indexes are not checked,  Status unknown."
-        [ $CheckedFTS -eq 1 ] && [ $FTSDamaged -eq 0 ] && Output "  FTS indexes are OK."
-        [ $CheckedFTS -eq 1 ] && [ $FTSDamaged -eq 1 ] && Output "  FTS indexes are damaged."
-        Output ""
-        ;;
-
-
-      # Undo
-      12|undo*)
-
-         DoUndo
-         ;;
-
-
-      # Remove (prune) unused image files from PhotoTranscoder Cache > 30 days old.
-      # Also remove all PMS temp files left behind in TMP.  (combine both into one action)
-      21|22|prun*|remo*|purg*)
-
-        # Check if PMS running
-        if IsRunning; then
-          WriteLog "Prune   - FAIL - PMS runnning"
-          Output   "Unable to prune PhotoTranscoder cache.  PMS is running."
-          continue
-        fi
-
-        WriteLog "Prune   - START"
-        DoPrunePhotoTranscoder
-        WriteLog "Prune   - PASS"
-        ;;
-
-
-      # Deflate the DB because Plex isn't doing a good job during scheduled tasks.
-      23|defl*)
-
-        # Check if PMS running
-        if IsRunning; then
-          WriteLog "Deflate - FAIL - PMS runnning"
-          Output   "Unable to deflate.  PMS is running. Please stop PlexMediaServer."
-          continue
-        fi
-
-        # Is there enough room to work
-        if ! FreeSpaceAvailable; then
-          WriteLog "Deflate - FAIL - Insufficient free space on $AppSuppDir"
-          Output   "Error:   Unable to deflate.  Insufficient free space available on $AppSuppDir"
-          Output   "         Space needed = $SpaceNeeded MB,  Space available = $SpaceAvailable MB"
-          continue
-        fi
-
-        # Start auto
-        Output "Check and Deflate started."
-        WriteLog "Deflate - START"
-
-        # Check the databases (forced)
-        Output ""
-        if CheckDatabases "Check  " force ; then
-          WriteLog "Check   - PASS"
-          CheckedDB=1
-        else
-          WriteLog "Check   - FAIL"
-          CheckedDB=0
-        fi
-
-        # Now Deflate
-        Output ""
-        if ! DoDeflate; then
-
-          WriteLog "Deflate - FAIL"
-          CheckedDB=0
-
-          Output "Deflate failed. Please repair using Automatic mode."
-          continue
-        else
-          WriteLog "Deflate - PASS"
-          CheckedDB=1
-        fi
-
-        # All good to here
-        WriteLog "Deflate - PASS"
-        Output   "Deflate successful."
-        Output   "Recommend running "Auto" next to complete optimization of new database."
-        ;;
-
-
-      # Records count
-      30|coun*)
-
-        Temp="$DBDIR/DBRepair.tab1"
-        Temp2="$DBDIR/DBRepair.tab2"
-
-        # Ensure clean
-        rm -f "$Temp" "$Temp2"
-
-        # Get list of tables
-        Tables="$("$PLEX_SQLITE" "$DBDIR/com.plexapp.plugins.library.db" .tables | sed 's/ /\n/g')"
-
-        # Separate and sort tables
-        for i in $Tables
-        do
-          echo $i >> "$Temp"
-        done
-        sort < "$Temp" > "$Temp2"
-
-        Tables="$(cat "$Temp2")"
-
-        # Get counts
-        for Table in $Tables
-        do
-          Records=$("$PLEX_SQLITE" "$DBDIR/com.plexapp.plugins.library.db" "select count(*) from $Table;")
-          printf "%36s %-15d\n" $Table $Records
-        done
-      ;;
-
-      # Ignore/Honor errors
-      42|igno*|hono*)
-
-        IgnoreErrors=$((IgnoreErrors ^ 1))
-        [ $IgnoreErrors -eq 0 ] && Output "Honoring database errors." && WriteLog "Honoring database errors."
-        [ $IgnoreErrors -eq 1 ] && Output "Ignoring database errors." && WriteLog "Ignoring database errors."
-        ;;
+      # 1|stop)
+      #
+      #   DoStop
+      #   ;;
+      #
+      #
+      # # Automatic of all common operations
+      # 2|auto*)
+      #
+      #   # Check if PMS running
+      #   if IsRunning; then
+      #     WriteLog "Auto    - FAIL - PMS runnning"
+      #     Output   "Unable to run automatic sequence.  PMS is running. Please stop PlexMediaServer."
+      #     continue
+      #   fi
+      #
+      #   # Is there enough room to work
+      #   if ! FreeSpaceAvailable; then
+      #     WriteLog "Auto    - FAIL - Insufficient free space on $AppSuppDir"
+      #     Output   "Error:   Unable to run automatic sequence.  Insufficient free space available on $AppSuppDir"
+      #     Output   "         Space needed = $SpaceNeeded MB,  Space available = $SpaceAvailable MB"
+      #     continue
+      #   fi
+      #
+      #   # Start auto
+      #   Output "Automatic Check,Repair,Index started."
+      #   WriteLog "Auto    - START"
+      #
+      #   # Check the databases (forced)
+      #   Output ""
+      #   if CheckDatabases "Check  " force ; then
+      #     WriteLog "Check   - PASS"
+      #     CheckedDB=1
+      #   else
+      #     WriteLog "Check   - FAIL"
+      #     CheckedDB=0
+      #     continue
+      #   fi
+      #
+      #   # Now Repair
+      #   Output ""
+      #   if ! DoRepair; then
+      #
+      #     WriteLog "Repair  - FAIL"
+      #     WriteLog "Auto    - FAIL"
+      #     CheckedDB=0
+      #
+      #     Output "Repair failed. Automatic mode cannot continue. Please repair with individual commands"
+      #     continue
+      #   else
+      #     WriteLog "Repair  - PASS"
+      #     CheckedDB=1
+      #   fi
+      #
+      #   # Now Index
+      #   DoUpdateTimestamp
+      #   Output ""
+      #   if ! DoIndex; then
+      #     WriteLog "Index   - FAIL"
+      #     WriteLog "Auto    - FAIL"
+      #     CheckedDB=0
+      #
+      #     Output "Index failed. Automatic mode cannot continue. Please repair with individual commands"
+      #     continue
+      #   else
+      #     WriteLog "Reindex - PASS"
+      #   fi
+      #
+      #   # Now check FTS indexes and repair if damaged
+      #   DoUpdateTimestamp
+      #   Output ""
+      #   if ! CheckFTS "Auto   "; then
+      #     Output ""
+      #     Output "FTS indexes are damaged. Attempting automatic FTS rebuild..."
+      #     WriteLog "Auto    - FTS damaged, attempting rebuild"
+      #
+      #     if DoFTSRebuild && CheckFTS "Auto   "; then
+      #       WriteLog "Auto    - FTS Rebuild - PASS (verified)"
+      #       Output "FTS rebuild successful and verified clean."
+      #     else
+      #       WriteLog "Auto    - FTS Rebuild - FAIL (unverified or still damaged)"
+      #       Output "FTS rebuild did not produce a verified-clean index. You may need to run 'reindex' command manually."
+      #       # Don't fail auto entirely - main DB repair succeeded
+      #     fi
+      #   else
+      #     WriteLog "Auto    - FTS Check - PASS"
+      #   fi
+      #
+      #   # All good to here
+      #   WriteLog "Auto    - COMPLETED"
+      #   Output   "Automatic Check, Repair/optimize, Index, & FTS check successful."
+      #   ;;
+
+
+      # # Check databases
+      # 3|chec*)
+      #
+      #   # Check if PMS running
+      #   if IsRunning; then
+      #     WriteLog "Check   - FAIL - PMS runnning"
+      #     Output   "Unable to check databases.  PMS is running."
+      #     continue
+      #   fi
+      #
+      #   # CHECK DBs
+      #   if CheckDatabases "Check  " force ; then
+      #     WriteLog "Check   - PASS"
+      #     CheckedDB=1
+      #   else
+      #     WriteLog "Check   - FAIL"
+      #     CheckedDB=0
+      #   fi
+      #
+      #   # Also check FTS indexes (these can be damaged even when integrity_check passes)
+      #   Output ""
+      #   if ! CheckFTS "Check  "; then
+      #     Output ""
+      #     Output "NOTE: FTS indexes are damaged but main database structure is OK."
+      #     Output "      Use 'reindex' (option 6) or 'automatic' (option 2) to rebuild."
+      #   fi
+      #   ;;
+      #
+      # # Vacuum
+      # 4|vacu*)
+      #
+      #   # Check if PMS running
+      #   if IsRunning; then
+      #     WriteLog "Vacuum - FAIL - PMS runnning"
+      #     Output   "Unable to vacuum databases.  PMS is running."
+      #     continue
+      #   fi
+      #
+      #   DoVacuum
+      #   continue
+      #   ;;
+      #
+      # # Repair (Same as optimize but assumes damaged so doesn't check)
+      # 5|repa*)
+      #
+      #   # Check if PMS running
+      #   if IsRunning; then
+      #     WriteLog "Repair - FAIL - PMS runnning"
+      #     Output   "Unable to repair databases.  PMS is running."
+      #     continue
+      #   fi
+      #
+      #   # Is there enough room to work
+      #   if ! FreeSpaceAvailable; then
+      #     WriteLog "Import  - FAIL - Insufficient free space on $AppSuppDir"
+      #     Output   "Error:   Unable to repair database.  Insufficient free space available on $AppSuppDir"
+      #     continue
+      #   fi
+      #
+      #
+      #   DoRepair
+      #   ;;
+      #
+      #
+      # # Index databases
+      # 6|rein*|inde*)
+      #
+      #   # Check if PMS running
+      #   if IsRunning; then
+      #     WriteLog "Index   - FAIL - PMS runnning"
+      #     Output   "Unable to index databases.  PMS is running."
+      #     continue
+      #   fi
+      #
+      #   # Is there enough room to work
+      #   if ! FreeSpaceAvailable; then
+      #     WriteLog "Index   - FAIL - Insufficient free space on $AppSuppDir"
+      #     Output   "Error:   Unable to perform processing.  Insufficient free space available on $AppSuppDir"
+      #     continue
+      #   fi
+      #
+      #   # First check the databases
+      #   if CheckDatabases Check; then
+      #     WriteLog "Check   - PASS"
+      #     CheckedDB=1
+      #
+      #     # Now index
+      #     if DoIndex ; then
+      #       WriteLog "Reindex - PASS"
+      #
+      #       # Check FTS indexes and repair if damaged
+      #       Output ""
+      #       if ! CheckFTS "Reindex"; then
+      #         Output ""
+      #         Output "FTS indexes are damaged. Rebuilding..."
+      #         WriteLog "Reindex - FTS damaged, attempting rebuild"
+      #
+      #         if DoFTSRebuild && CheckFTS "Reindex"; then
+      #           WriteLog "Reindex - FTS Rebuild - PASS (verified)"
+      #           Output "FTS rebuild successful and verified clean."
+      #         else
+      #           WriteLog "Reindex - FTS Rebuild - FAIL (unverified or still damaged)"
+      #           Output "FTS rebuild did not produce a verified-clean index."
+      #         fi
+      #       else
+      #         WriteLog "Reindex - FTS Check - PASS"
+      #       fi
+      #     else
+      #       WriteLog "Reindex - FAIL"
+      #     fi
+      #   else
+      #     WriteLog "Check   - FAIL"
+      #     CheckedDB=0
+      #   fi
+      #   ;;
+
+
+      # # Start PMS (if available this host)
+      # 7|star*)
+      #
+      #   DoStart
+      #   ;;
+      #
+      #
+      # # Menu on/off control
+      # menu*)
+      #
+      #   # Choices are ON,OFF,YES,NO
+      #   Option="$(echo $Input | tr '[A-Z]' '[a-z]' | awk '{print $2}')"
+      #
+      #   [ "$Option" = "on"  ] && ShowMenu=1
+      #   [ "$Option" = "yes" ] && ShowMenu=1
+      #   [ "$Option" = "off" ] && ShowMenu=0 && echo Menu off: Reenable with \'menu on\' command
+      #   [ "$Option" = "no"  ] && ShowMenu=0 && echo menu off: Reenable with \'menu on\' command
+      #   ;;
+      #
+      #
+      # # Import watch history
+      # 8|impo*)
+      #
+      #   DoImport
+      #   ;;
+      #
+      #
+      # # Replace (from PMS backup)
+      # 9|repl*)
+      #
+      #   # Check if PMS running
+      #   if IsRunning; then
+      #     WriteLog "Replace - FAIL - PMS runnning"
+      #     Output   "Unable to replace database from a backup copy.  PMS is running."
+      #     continue
+      #   fi
+      #
+      #   # Is there enough room to work
+      #   if ! FreeSpaceAvailable; then
+      #     WriteLog "Replace - FAIL - Insufficient free space on $AppSuppDir"
+      #     Output   "Error:   Unable to replace from backups.  Insufficient free space available on $AppSuppDir"
+      #     continue
+      #   fi
+      #
+      #   DoReplace
+      #   ;;
+      #
+      #
+      # # Show loggfile
+      # 10|show*)
+      #
+      #     echo ==================================================================================
+      #     cat "$LOGFILE"
+      #     echo ==================================================================================
+      #     ;;
+      #
+      #
+      # # Current status of Plex and databases
+      # 11|stat*)
+      #
+      #   Output ""
+      #   Output "Status report: $(date)"
+      #   if IsRunning ; then
+      #     Output "  PMS is running."
+      #   else
+      #     Output "  PMS is stopped."
+      #   fi
+      #
+      #   [ $CheckedDB -eq 0 ] && Output "  Databases are not checked,  Status unknown."
+      #   [ $CheckedDB -eq 1 ] && [ $Damaged -eq 0 ] && Output "  Databases are OK."
+      #   [ $CheckedDB -eq 1 ] && [ $Damaged -eq 1 ] && Output "  Databases were checked and are damaged."
+      #   [ $CheckedFTS -eq 0 ] && Output "  FTS indexes are not checked,  Status unknown."
+      #   [ $CheckedFTS -eq 1 ] && [ $FTSDamaged -eq 0 ] && Output "  FTS indexes are OK."
+      #   [ $CheckedFTS -eq 1 ] && [ $FTSDamaged -eq 1 ] && Output "  FTS indexes are damaged."
+      #   Output ""
+      #   ;;
+      #
+      #
+      # # Undo
+      # 12|undo*)
+      #
+      #    DoUndo
+      #    ;;
+      #
+      #
+      # # Remove (prune) unused image files from PhotoTranscoder Cache > 30 days old.
+      # # Also remove all PMS temp files left behind in TMP.  (combine both into one action)
+      # 21|22|prun*|remo*|purg*)
+      #
+      #   # Check if PMS running
+      #   if IsRunning; then
+      #     WriteLog "Prune   - FAIL - PMS runnning"
+      #     Output   "Unable to prune PhotoTranscoder cache.  PMS is running."
+      #     continue
+      #   fi
+      #
+      #   WriteLog "Prune   - START"
+      #   DoPrunePhotoTranscoder
+      #   WriteLog "Prune   - PASS"
+      #   ;;
+      #
+      #
+      # # Deflate the DB because Plex isn't doing a good job during scheduled tasks.
+      # 23|defl*)
+      #
+      #   # Check if PMS running
+      #   if IsRunning; then
+      #     WriteLog "Deflate - FAIL - PMS runnning"
+      #     Output   "Unable to deflate.  PMS is running. Please stop PlexMediaServer."
+      #     continue
+      #   fi
+      #
+      #   # Is there enough room to work
+      #   if ! FreeSpaceAvailable; then
+      #     WriteLog "Deflate - FAIL - Insufficient free space on $AppSuppDir"
+      #     Output   "Error:   Unable to deflate.  Insufficient free space available on $AppSuppDir"
+      #     Output   "         Space needed = $SpaceNeeded MB,  Space available = $SpaceAvailable MB"
+      #     continue
+      #   fi
+      #
+      #   # Start auto
+      #   Output "Check and Deflate started."
+      #   WriteLog "Deflate - START"
+      #
+      #   # Check the databases (forced)
+      #   Output ""
+      #   if CheckDatabases "Check  " force ; then
+      #     WriteLog "Check   - PASS"
+      #     CheckedDB=1
+      #   else
+      #     WriteLog "Check   - FAIL"
+      #     CheckedDB=0
+      #   fi
+      #
+      #   # Now Deflate
+      #   Output ""
+      #   if ! DoDeflate; then
+      #
+      #     WriteLog "Deflate - FAIL"
+      #     CheckedDB=0
+      #
+      #     Output "Deflate failed. Please repair using Automatic mode."
+      #     continue
+      #   else
+      #     WriteLog "Deflate - PASS"
+      #     CheckedDB=1
+      #   fi
+      #
+      #   # All good to here
+      #   WriteLog "Deflate - PASS"
+      #   Output   "Deflate successful."
+      #   Output   "Recommend running "Auto" next to complete optimization of new database."
+      #   ;;
+      #
+      #
+      # # Records count
+      # 30|coun*)
+      #
+      #   Temp="$DBDIR/DBRepair.tab1"
+      #   Temp2="$DBDIR/DBRepair.tab2"
+      #
+      #   # Ensure clean
+      #   rm -f "$Temp" "$Temp2"
+      #
+      #   # Get list of tables
+      #   Tables="$("$PLEX_SQLITE" "$DBDIR/com.plexapp.plugins.library.db" .tables | sed 's/ /\n/g')"
+      #
+      #   # Separate and sort tables
+      #   for i in $Tables
+      #   do
+      #     echo $i >> "$Temp"
+      #   done
+      #   sort < "$Temp" > "$Temp2"
+      #
+      #   Tables="$(cat "$Temp2")"
+      #
+      #   # Get counts
+      #   for Table in $Tables
+      #   do
+      #     Records=$("$PLEX_SQLITE" "$DBDIR/com.plexapp.plugins.library.db" "select count(*) from $Table;")
+      #     printf "%36s %-15d\n" $Table $Records
+      #   done
+      # ;;
+      #
+      # # Ignore/Honor errors
+      # 42|igno*|hono*)
+      #
+      #   IgnoreErrors=$((IgnoreErrors ^ 1))
+      #   [ $IgnoreErrors -eq 0 ] && Output "Honoring database errors." && WriteLog "Honoring database errors."
+      #   [ $IgnoreErrors -eq 1 ] && Output "Ignoring database errors." && WriteLog "Ignoring database errors."
+      #   ;;
 
       88|upda*)
 
-        # Don't update again after restarting after updating
-        if [ $DBRepairRestartedAfterUpdate -eq 1 ]; then
-          Output "Already updated.  Continuing."
-          WriteLog "Update - Ignore Update request after updating."
-          continue
-        fi
-
+        # Ask GitHub for the newest release tag
         DoUpdate=0
         Output "Checking for update"
         GetLatestRelease
-        if [ $(VersionDigits $LatestVersion) -gt $(VersionDigits $Version) ]; then
+
+        # A known OS and CPU are needed to pick the matching zip
+        if [ "$HostOs" = "" ] || [ "$HostCpu" = "" ]; then
+          Output "Unsupported host: OS='$(uname -s)' CPU='$(uname -m)'. Cannot select a download."
+          WriteLog "Update   - Unsupported host OS='$(uname -s)' CPU='$(uname -m)'"
+        elif [ $(VersionDigits $LatestVersion) -gt $(VersionDigits $Version) ]; then
+          ZipName="DBRepair-${LatestVersion#v}-${HostOs}-${HostCpu}.zip"
+          ZipUrl="https://github.com/ChuckPa/DBRepair/releases/download/${LatestVersion}/${ZipName}"
           if [ $Scripted -eq 1 ]; then
             DoUpdate=1
-          elif ConfirmYesNo "Download $LatestVersion and update?"; then
+          elif ConfirmYesNo "Download $ZipName to $DownloadDir ?"; then
             DoUpdate=1
           fi
         else
           Output "No update available."
         fi
 
-        # Check if script path is writable
+        # Download the zip for this host (the user unzips and runs it)
         if [ $DoUpdate -eq 1 ]; then
-          if [ -w "$ScriptWorkingDirectory" ]; then
-            Output "Updating from $Version to $LatestVersion"
-            DownloadAndUpdate "https://raw.githubusercontent.com/ChuckPa/DBRepair/master/DBRepair.sh" "$ScriptWorkingDirectory/$ScriptName"
-            Result=$?
-            if [ $Result -eq 0 ]; then
-              chmod +x "$ScriptWorkingDirectory/$ScriptName"
-              if [ $Scripted -eq 0 ] && ConfirmYesNo "Restart and use $LatestVersion ?" ; then
-                WriteLog "Restarting after upgrade"
-                Output   "Restarting"
-                export DBRepairRestartedAfterUpdate=1
-                exec "$ScriptWorkingDirectory/$ScriptName" "$*"
-              else
-                Output "Restart to launch updated DBRepair.sh ($LatestVersion)"
-                WriteLog "Update   - Updated to version $LatestVersion."
-              fi
-              exit 0
-            else
-              Output "Unable to download and update.  Error $Result."
-            fi
+          Output "Downloading $ZipName to $DownloadDir"
+          if curl -fsL "$ZipUrl" --output "$DownloadDir/$ZipName"; then
+            Output "Downloaded: $DownloadDir/$ZipName"
+            Output "Unzip it, place DBRepair where appropriate, and run it."
+            WriteLog "Update   - Downloaded $ZipName"
+            exit 0
           else
-            Output "Script path '${ScriptName}' is not writable."
+            rm -f "$DownloadDir/$ZipName"
+            Output "Unable to download $ZipUrl"
+            WriteLog "Update   - Download of $ZipName FAILED"
           fi
         fi
 
-        [ $Scripted -eq 1 ] && [ $DoUpdate -eq 1 ] && exit 0
+        # Old script self-update (replaced by the zip download above)
+        # # Don't update again after restarting after updating
+        # if [ $DBRepairRestartedAfterUpdate -eq 1 ]; then
+        #   Output "Already updated.  Continuing."
+        #   WriteLog "Update - Ignore Update request after updating."
+        #   continue
+        # fi
+        #
+        # DoUpdate=0
+        # Output "Checking for update"
+        # GetLatestRelease
+        # if [ $(VersionDigits $LatestVersion) -gt $(VersionDigits $Version) ]; then
+        #   if [ $Scripted -eq 1 ]; then
+        #     DoUpdate=1
+        #   elif ConfirmYesNo "Download $LatestVersion and update?"; then
+        #     DoUpdate=1
+        #   fi
+        # else
+        #   Output "No update available."
+        # fi
+        #
+        # # Check if script path is writable
+        # if [ $DoUpdate -eq 1 ]; then
+        #   if [ -w "$ScriptWorkingDirectory" ]; then
+        #     Output "Updating from $Version to $LatestVersion"
+        #     DownloadAndUpdate "https://raw.githubusercontent.com/ChuckPa/DBRepair/master/DBRepair.sh" "$ScriptWorkingDirectory/$ScriptName"
+        #     Result=$?
+        #     if [ $Result -eq 0 ]; then
+        #       chmod +x "$ScriptWorkingDirectory/$ScriptName"
+        #       if [ $Scripted -eq 0 ] && ConfirmYesNo "Restart and use $LatestVersion ?" ; then
+        #         WriteLog "Restarting after upgrade"
+        #         Output   "Restarting"
+        #         export DBRepairRestartedAfterUpdate=1
+        #         exec "$ScriptWorkingDirectory/$ScriptName" "$*"
+        #       else
+        #         Output "Restart to launch updated DBRepair.sh ($LatestVersion)"
+        #         WriteLog "Update   - Updated to version $LatestVersion."
+        #       fi
+        #       exit 0
+        #     else
+        #       Output "Unable to download and update.  Error $Result."
+        #     fi
+        #   else
+        #     Output "Script path '${ScriptName}' is not writable."
+        #   fi
+        # fi
+        #
+        # [ $Scripted -eq 1 ] && [ $DoUpdate -eq 1 ] && exit 0
       ;;
 
       # Quit
@@ -2999,23 +3068,24 @@ do
           exit 1
         fi
 
-        # If cmd line mode, exit clean without asking
-        if [ $Scripted -eq 1 ]; then
-          rm -rf $TMPDIR
-          WriteLog "Exit    - Delete temp files."
-
-        else
-          # Ask questions on interactive exit
-          if ConfirmYesNo "Ok to remove temporary databases/workfiles for this session?" ; then
-            # There it goes
-            Output "Deleting all temporary work files."
-            WriteLog "Exit    - Delete temp files."
-            rm -rf "$TMPDIR"
-          else
-            Output "Retaining all temporary work files."
-            WriteLog "Exit    - Retain temp files."
-          fi
-        fi
+        # Temp cleanup disabled: TMPDIR is /tmp and the downloader keeps no work files
+        # # If cmd line mode, exit clean without asking
+        # if [ $Scripted -eq 1 ]; then
+        #   rm -rf $TMPDIR
+        #   WriteLog "Exit    - Delete temp files."
+        #
+        # else
+        #   # Ask questions on interactive exit
+        #   if ConfirmYesNo "Ok to remove temporary databases/workfiles for this session?" ; then
+        #     # There it goes
+        #     Output "Deleting all temporary work files."
+        #     WriteLog "Exit    - Delete temp files."
+        #     rm -rf "$TMPDIR"
+        #   else
+        #     Output "Retaining all temporary work files."
+        #     WriteLog "Exit    - Retain temp files."
+        #   fi
+        # fi
 
         WriteLog "Session end. $(date)"
         WriteLog "============================================================"
