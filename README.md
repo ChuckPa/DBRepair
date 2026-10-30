@@ -81,4 +81,8 @@ prefer to download only the executable without the bundled documentation).*
 
 [Where to install DBRepair](https://github.com/ChuckPa/DBRepair/wiki/Install)
 
+[FreeBSD 14.x binary final test](https://forums.plex.tv/t/dbrepair-development/822684/1408)
+Formal release with the next update of DBRepair.
+
+
 **DBRepair is free but one-time Donations or Sponsorships to defray development costs are always welcomed** 
