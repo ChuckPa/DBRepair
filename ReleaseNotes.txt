@@ -1,0 +1,96 @@
+DBRepair Release Notes
+
+v26.11.00
+
+  * FreeBSD x86_64
+    - DBRepair is now supported on 14+ x86_64.
+
+  * MacOS
+    - DBRepair now runs on MacOS 12 (Monterey) and newer.
+    - MacOS 27 (Golden Gate) recognized.
+
+  * Settings (Program and Menu)
+    - You can now save several settings within DBRepair itself.
+      Environment variable or command line options are only needed when you want to
+      override a setting.
+        -- Settings are "page based".  No more constant scrolling text"
+
+    - Your customized program and menu settings load
+      as DBRepair initializes.
+
+    - Program Settings -vs- Environment -vs- Command line options
+      Precedence (Highest first)
+        -- Command line options
+        -- Settings
+        -- Environment variables
+        -- Program defaults
+
+    - Program Settings (Preferences) take effect immediately
+      **EXCEPT**  Databases.
+        -- Setting a Database path requires DBRepair to restart so it
+           can initialize all internal variables for the new location
+           and databases it finds there.
+
+    - Menu Settings allow you to turn off all but a few menu options
+      you don't frequently use.
+        -- All commands are always available whether
+           visible in the menu or not.
+        -- Menu settings take effect immediately.
+
+
+    - Locations:
+      -- MacOS:    ~/Library/Preferences/com.chuckpa.dbrepair.plist
+      -- Linux:    ~/.dbrepair  (root)
+      -- FreeBSD:  ~/.dbrepair  (root)
+      -- Windows:  %LOCALAPPDATA%\DBRepair\DBRepair.ini
+
+
+  * Phantom/Ghost entries
+    - Received a report of PMS not making backups.
+      Root cause was 12 "Null" records of 'metadata_type=0' in the database.
+    - DBRepair now checks for 'metadata_type=0' (Ghost) records and deletes them.
+    - NULL title fields (causing Plex SQLite to fail) are now repaired
+      by replacing the NULL value with an empty string ( "" ) as is PMS normal behavior.
+
+  * Expunge no longer limited to 100 accounts.
+    - Expunge is no longer capped per invocation.
+      It will now find and delete as many as memory allows.
+      The first 25 will be listed on console with all being listed in DBRepair.log
+
+
+v26.10.00
+
+  * Initial Public Release
+    - Version 26.10.00 is the DBRepair initial public release.
+    - Completely rewritten from scratch using "C" programming language.
+    - No external dependencies (Plex SQLite not required).
+    - While having been thoroughly tested throughout its development, I
+      do expect the typical "small stuff".
+    - If you do find something amiss,  please file an issue and I'll
+      resolve it ASAP.
+
+  * Databases
+    - DBRepair now contains database knowledge for versions 1.18.2 and above.
+      (255 PMS builds)
+
+  * Database Repairs & Cleanup
+    - DBRepair is now intelligent, and a lot faster, than the old DBRepair script
+      ever could be.
+    - It can do things the old DBRepair never could.
+    - New commands, better analysis and repairs,
+      DBRepair is "all grown up"  (ha ha)
+
+  * Full Wiki
+    - DBRepair now has a full Wiki (https://github.com/ChuckPa/DBRepair/wiki)
+      Everything is documented in it.
+      Please point out any typos or errors.
+
+  * Thanks
+    - Special thanks go to @ukdtom for keeping me
+      on the right path throughout these past six months.
+
+
+
+### Questions ??
+
+Please don't hesitate to ask.
